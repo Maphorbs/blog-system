@@ -18,6 +18,23 @@ import {
   initializeDatabase,
 } from "./db-providers";
 
+export {
+  getBlogs,
+  getBlogById,
+  createBlog,
+  updateBlog,
+  deleteBlog,
+  getEvents,
+  getEventById,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  getCategories,
+  createCategory,
+  deleteCategory,
+  initializeDatabase,
+};
+
 /**
  * Auto-creates the required dynamic catch-all API route file in the host project if it doesn't exist.
  */

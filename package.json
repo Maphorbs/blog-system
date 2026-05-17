@@ -1,6 +1,9 @@
 {
   "name": "@maphorbs/blog-system",
-  "version": "1.0.1",
+  "version": "1.0.4",
+  "files": [
+    "dist"
+  ],
   "description": "Universal, pluggable, database-agnostic Blog & Event CMS engine and admin dashboard for full-stack apps.",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

@@ -27,6 +27,41 @@ Install the peer dependency for your chosen database (optional/only if using the
 
 ---
 
+## 🎨 Tailwind CSS Config (Crucial for Styling)
+
+Because `@maphorbs/blog-system` renders a stunning glassmorphic UI using Tailwind CSS classes, you **must** configure Tailwind in your host project to scan the package's compiled build outputs. Otherwise, the styles will not load properly.
+
+### For Tailwind CSS v4 (Standard `@source` directives)
+Add the following `@source` rules directly inside your main CSS file (e.g., `app/globals.css` or `styles/globals.css`) right after importing Tailwind:
+
+```css
+@import "tailwindcss";
+
+/* Scan the blog system package for Tailwind styles */
+@source "../node_modules/@maphorbs/blog-system/dist/**/*.js";
+@source "../node_modules/@maphorbs/blog-system/dist/**/*.mjs";
+```
+
+### For Tailwind CSS v3 (`tailwind.config.js` content array)
+Add the package paths to the `content` array inside your `tailwind.config.js` file:
+
+```javascript
+module.exports = {
+  content: [
+    "./app/**/*.{js,ts,jsx,tsx}",
+    "./components/**/*.{js,ts,jsx,tsx}",
+    // Add the package compiled source paths:
+    "./node_modules/@maphorbs/blog-system/dist/**/*.{js,mjs}"
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+```
+
+---
+
 ## 🚀 1. Next.js App Router Integration
 
 ### Backend API Setup

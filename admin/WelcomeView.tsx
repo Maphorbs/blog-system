@@ -49,18 +49,18 @@ export const WelcomeView: React.FC<WelcomeViewProps> = ({ onGetStarted }) => {
           </a>
         </div>
 
-        <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8 opacity-40 grayscale hover:grayscale-0 transition-all duration-500">
-          <div className="flex flex-col items-center gap-2">
-            <span className="font-bold text-sm">Supabase</span>
+        <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8 transition-all duration-500">
+          <div className="flex flex-col items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+            <span className="font-bold text-sm text-gray-800">Supabase</span>
           </div>
-          <div className="flex flex-col items-center gap-2">
-            <span className="font-bold text-sm">Firebase</span>
+          <div className="flex flex-col items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+            <span className="font-bold text-sm text-gray-800">Firebase</span>
           </div>
-          <div className="flex flex-col items-center gap-2">
-            <span className="font-bold text-sm">MongoDB</span>
+          <div className="flex flex-col items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+            <span className="font-bold text-sm text-gray-800">MongoDB</span>
           </div>
-          <div className="flex flex-col items-center gap-2">
-            <span className="font-bold text-sm">Postgres</span>
+          <div className="flex flex-col items-center gap-2 opacity-60 hover:opacity-100 transition-opacity">
+            <span className="font-bold text-sm text-gray-800">Postgres</span>
           </div>
         </div>
       </div>
