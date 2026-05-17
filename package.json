@@ -1,6 +1,6 @@
 {
   "name": "@maphorbs/blog-system",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Universal, pluggable, database-agnostic Blog & Event CMS engine and admin dashboard for full-stack apps.",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -38,7 +38,7 @@
   "license": "MIT",
   "peerDependencies": {
     "lucide-react": "^1.0.0",
-    "next": "^13.0.0 || ^14.0.0 || ^15.0.0",
+    "next": "^13.0.0 || ^14.0.0 || ^15.0.0 || ^16.0.0",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0",
     "react-hot-toast": "^2.0.0",
