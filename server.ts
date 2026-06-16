@@ -25,7 +25,6 @@ import {
   isStorageConfigured,
 } from "./env-config";
 
-// Re-export db helpers so consumers can import them from this file too
 export {
   getBlogs,
   getBlogById,
@@ -46,6 +45,10 @@ export {
 // ── Bootstrap: auto-create the catch-all API route in the host app ────────────
 
 async function bootstrapApiRoute() {
+  // Vercel and other serverless platforms have a read-only filesystem.
+  // The route file is already bundled at build time — nothing to create.
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) return;
+
   const possiblePaths = [
     path.join(process.cwd(), "app", "api", "admin", "[...blogSystem]", "route.ts"),
     path.join(process.cwd(), "src", "app", "api", "admin", "[...blogSystem]", "route.ts"),
@@ -86,6 +89,31 @@ export { handler as GET, handler as POST, handler as PUT, handler as PATCH, hand
   }
 }
 
+// ── DB initialisation cache ───────────────────────────────────────────────────
+
+let dbInitialised = false;
+let dbInitPromise: Promise<void> | null = null;
+
+async function ensureDbInitialised(db: any): Promise<void> {
+  if (dbInitialised) return;
+
+  if (!dbInitPromise) {
+    dbInitPromise = (async () => {
+      try {
+        await initializeDatabase(db);
+        dbInitialised = true;
+        console.log(`[BlogSystem] DB initialised (provider: ${db.provider})`);
+      } catch (e: any) {
+        dbInitPromise = null;
+        console.error("[BlogSystem] DB init failed:", e.message);
+        throw e;
+      }
+    })();
+  }
+
+  await dbInitPromise;
+}
+
 // ── Handler factory ───────────────────────────────────────────────────────────
 
 export function createBlogSystemApiHandler() {
@@ -96,32 +124,39 @@ export function createBlogSystemApiHandler() {
     try {
       bootstrapApiRoute().catch(() => {});
 
-      const params    = await Promise.resolve(context.params);
+      const params = await Promise.resolve(context.params);
       const blogSystem: string[] = params?.blogSystem || [];
       const routePath = blogSystem.join("/");
-      const method    = req.method;
+      const method = req.method;
 
       // ════════════════════════════════════════════════════════════════════════
       // CONFIG  /api/admin/config
       // ════════════════════════════════════════════════════════════════════════
       if (routePath === "config") {
 
-        // ── GET ─────────────────────────────────────────────────────────────
-        // Resolves config from env vars + local file so the admin UI always
-        // sees the correct state, even when no JSON file exists (Vercel).
         if (method === "GET") {
-          // Ensure local upload dir exists (no-op on Vercel)
           const uploadDir = path.join(process.cwd(), "public", "uploads", "blog");
           try { await mkdir(uploadDir, { recursive: true }); } catch {}
 
           const { db, storage } = await resolveConfig();
 
-          // Neither env vars nor wizard file provided anything → show wizard
           if (!db.provider && !storage.provider) {
             return NextResponse.json({});
           }
 
-          // Return a minimal shape the admin UI understands
+          if (isDbConfigured(db)) {
+            try {
+              await ensureDbInitialised(db);
+            } catch (initErr: any) {
+              return NextResponse.json({
+                db:      { provider: db.provider },
+                storage: { provider: storage.provider },
+                isSetup: false,
+                dbError: initErr.message,
+              });
+            }
+          }
+
           return NextResponse.json({
             db:      { provider: db.provider },
             storage: { provider: storage.provider },
@@ -129,14 +164,9 @@ export function createBlogSystemApiHandler() {
           });
         }
 
-        // ── POST ────────────────────────────────────────────────────────────
-        // Called by the setup wizard after the user fills in credentials.
-        // Writes to the local JSON file (works in dev) and initialises the DB.
-        // On Vercel the file write is silently ignored; env vars are used instead.
         if (method === "POST") {
           const body = await req.json();
 
-          // Save to local file (dev only; ignored on Vercel read-only FS)
           const CONFIG_DIR  = path.join(process.cwd(), "data");
           const CONFIG_FILE = path.join(CONFIG_DIR, "blog_system_config.json");
           try {
@@ -146,17 +176,21 @@ export function createBlogSystemApiHandler() {
             // Expected on Vercel — env vars take over
           }
 
-          // Merge wizard values with env vars; env vars always win
           const resolved = await resolveConfig();
-          const dbConfig  = {
-            ...body.db,      // wizard input
-            ...resolved.db,  // env vars override
+          const dbConfig = {
+            ...body.db,
+            ...resolved.db,
           };
 
           if (dbConfig.provider) {
             try {
-              const success = await initializeDatabase(dbConfig);
-              return NextResponse.json({ success, message: "Configuration saved and database initialised." });
+              dbInitialised = false;
+              dbInitPromise = null;
+              await ensureDbInitialised(dbConfig);
+              return NextResponse.json({
+                success: true,
+                message: "Configuration saved and database initialised.",
+              });
             } catch (dbError: any) {
               return NextResponse.json(
                 { error: `Config saved, but DB connection failed: ${dbError.message}` },
@@ -180,31 +214,25 @@ export function createBlogSystemApiHandler() {
         }
 
         const formData = await req.formData();
-        const file     = formData.get("file") as File | null;
+        const file = formData.get("file") as File | null;
 
         if (!file) {
           return NextResponse.json({ error: "No file provided" }, { status: 400 });
         }
 
-        // Resolve storage config — env vars always win
         const storageCfg   = await resolveStorageConfig();
-
-        // Client can suggest a provider only as a last-resort fallback
         const formProvider = formData.get("provider") as string | null;
         const provider     = storageCfg.provider || formProvider || "local_storage";
 
-        // Per-request config overrides are applied UNDER env vars
         const configStr  = formData.get("config") as string | null;
         const requestCfg = configStr ? JSON.parse(configStr) : {};
 
-        // Final merged config: requestCfg is the lowest priority
         const cfg = { ...requestCfg, ...storageCfg };
 
         const bytes    = await file.arrayBuffer();
         const buffer   = Buffer.from(bytes);
         const filename = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`;
 
-        // ── Local filesystem ───────────────────────────────────────────────
         if (provider === "local_storage") {
           const uploadDir = path.join(process.cwd(), "public", "uploads", "blog");
           try { await mkdir(uploadDir, { recursive: true }); } catch {}
@@ -212,7 +240,6 @@ export function createBlogSystemApiHandler() {
           return NextResponse.json({ url: `/uploads/blog/${filename}` });
         }
 
-        // ── Cloudinary ─────────────────────────────────────────────────────
         if (provider === "cloudinary") {
           const { cloudName, cloudApiKey, cloudApiSecret } = cfg;
 
@@ -222,14 +249,14 @@ export function createBlogSystemApiHandler() {
                 error:
                   "Cloudinary credentials missing. " +
                   "Set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET " +
-                  "as environment variables in your Vercel dashboard (or run the setup wizard locally).",
+                  "as environment variables.",
               },
               { status: 400 }
             );
           }
 
           const timestamp = Math.round(Date.now() / 1000).toString();
-          const folder    = "blog";
+          const folder    = cfg.cloudFolder || "blog";
           const { createHash } = await import("crypto");
           const signature = createHash("sha1")
             .update(`folder=${folder}&timestamp=${timestamp}${cloudApiSecret}`)
@@ -260,7 +287,6 @@ export function createBlogSystemApiHandler() {
           return NextResponse.json({ url: cloudData.secure_url });
         }
 
-        // ── AWS S3 / DigitalOcean Spaces ───────────────────────────────────
         if (provider === "aws_s3" || provider === "digitalocean_spaces") {
           const { accessKey, secretKey, region, bucket, endpoint } = cfg;
 
@@ -270,7 +296,7 @@ export function createBlogSystemApiHandler() {
                 error:
                   "S3 / Spaces credentials missing. " +
                   "Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_BUCKET_NAME " +
-                  "as environment variables in your Vercel dashboard (or run the setup wizard locally).",
+                  "as environment variables.",
               },
               { status: 400 }
             );
@@ -318,7 +344,22 @@ export function createBlogSystemApiHandler() {
       }
 
       // ════════════════════════════════════════════════════════════════════════
-      // BLOGS  /api/admin/blogs  &  /api/admin/blogs/:id
+      // All data routes — ensure DB is ready first
+      // ════════════════════════════════════════════════════════════════════════
+      const { db } = await resolveConfig();
+      if (isDbConfigured(db)) {
+        try {
+          await ensureDbInitialised(db);
+        } catch (e: any) {
+          return NextResponse.json(
+            { error: `Database not ready: ${e.message}` },
+            { status: 503 }
+          );
+        }
+      }
+
+      // ════════════════════════════════════════════════════════════════════════
+      // BLOGS
       // ════════════════════════════════════════════════════════════════════════
       if (routePath === "blogs") {
         if (method === "GET") {
@@ -353,7 +394,7 @@ export function createBlogSystemApiHandler() {
       }
 
       // ════════════════════════════════════════════════════════════════════════
-      // EVENTS  /api/admin/events  &  /api/admin/events/:id
+      // EVENTS
       // ════════════════════════════════════════════════════════════════════════
       if (routePath === "events") {
         if (method === "GET") {
@@ -388,7 +429,7 @@ export function createBlogSystemApiHandler() {
       }
 
       // ════════════════════════════════════════════════════════════════════════
-      // CATEGORIES  /api/admin/categories  &  /api/admin/categories/:id
+      // CATEGORIES
       // ════════════════════════════════════════════════════════════════════════
       if (routePath === "categories") {
         if (method === "GET") {

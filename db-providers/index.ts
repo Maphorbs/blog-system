@@ -17,42 +17,57 @@ export { FirebaseProvider } from "./firebase";
 
 let activeProvider: BackendDbProvider | null = null;
 
-function createProvider(providerType: string, config?: any): BackendDbProvider {
+// ── Provider factory ──────────────────────────────────────────────────────────
+// Always pass config so providers never fall back to reading the local JSON
+// file (which doesn't exist on Vercel). Every provider constructor accepts an
+// optional config argument and uses it in preference to the file.
+
+function createProvider(providerType: string, config: any): BackendDbProvider {
   switch (providerType) {
     case "postgres":
     case "aws_rds":
     case "digitalocean_db":
-      return new PostgresProvider();
+      return new PostgresProvider(config);
     case "supabase":
-      return config ? new SupabaseProvider(config) : new SupabaseProvider();
+      return new SupabaseProvider(config);
     case "mongodb":
-      return config ? new MongoDbProvider(config) : new MongoDbProvider();
+      return new MongoDbProvider(config);
     case "mysql":
-      return config ? new MySqlProvider(config) : new MySqlProvider();
+      return new MySqlProvider(config);
     case "sqlite":
-      return config ? new SqliteProvider(config) : new SqliteProvider();
+      return new SqliteProvider(config);
     case "firebase":
-      return config ? new FirebaseProvider(config) : new FirebaseProvider();
+      return new FirebaseProvider(config);
     default:
       throw new Error(`Unsupported database provider: ${providerType}`);
   }
 }
 
+// ── Active provider cache ─────────────────────────────────────────────────────
+// getActiveProvider() is called by all wrapper functions (getBlogs, etc.).
+// On Vercel it resolves config from env vars via resolveDbConfig() and creates
+// a provider with the full config object — no file reading involved.
+
 export async function getActiveProvider(): Promise<BackendDbProvider> {
   if (activeProvider) return activeProvider;
 
-  // Always resolve via env-config — works both locally (JSON file) and on Vercel (env vars)
   const dbConfig = await resolveDbConfig();
 
   if (!dbConfig.provider) {
-    throw new Error("Database is not configured. Please set BLOG_DB_PROVIDER and matching credentials.");
+    throw new Error(
+      "Database is not configured. " +
+      "Set BLOG_DB_PROVIDER and the matching credentials as environment variables."
+    );
   }
 
-  activeProvider = createProvider(dbConfig.provider);
+  // KEY FIX: pass dbConfig (not just the type string) so the provider
+  // constructor receives the full credentials and never tries to read the
+  // local JSON file.
+  activeProvider = createProvider(dbConfig.provider, dbConfig);
   return activeProvider;
 }
 
-/** Reset the cached provider (used after re-configuration) */
+/** Reset the cached provider — called after re-configuration or credential change */
 export function resetActiveProvider() {
   activeProvider = null;
 }
@@ -63,9 +78,12 @@ export async function initializeDatabase(config: any): Promise<boolean> {
   const providerType = config?.provider;
   if (!providerType) throw new Error("No provider specified in config.");
 
+  // Always pass the full config to the provider constructor
   const provider = createProvider(providerType, config);
-  const success = await provider.initializeDatabase(config);
+  const success  = await provider.initializeDatabase(config);
+
   if (success) {
+    // Replace the cached active provider so subsequent reads use the new one
     activeProvider = provider;
   }
   return success;

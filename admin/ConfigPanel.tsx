@@ -67,6 +67,14 @@ const WarnIcon = () => (
   </svg>
 );
 
+const InfoIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="16" x2="12.01" y2="16" />
+  </svg>
+);
+
 // ── Status helpers ────────────────────────────────────────────────────────────
 
 const badgeClass = (s: Status) => {
@@ -110,6 +118,21 @@ const STORAGE_PROVIDERS = [
   { id: "digitalocean_spaces", label: "DigitalOcean Spaces" },
   { id: "local_storage",       label: "Local Filesystem (dev only)" },
 ];
+
+// ── Env-var notice ────────────────────────────────────────────────────────────
+// Shown when config is driven by environment variables so users understand
+// why "Disconnect" doesn't permanently remove the provider.
+
+const EnvVarNotice = ({ target }: { target: "db" | "storage" }) => (
+  <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-2xl px-5 py-4 mt-3">
+    <span className="text-blue-500 mt-0.5 flex-shrink-0"><InfoIcon /></span>
+    <p className="text-sm text-blue-700 font-medium leading-relaxed">
+      This {target === "db" ? "database" : "storage"} provider is configured via{" "}
+      <strong className="font-black">environment variables</strong>. To permanently disconnect it,
+      remove the relevant env vars from your Vercel dashboard and redeploy.
+    </p>
+  </div>
+);
 
 // ── DB Reconnect form ─────────────────────────────────────────────────────────
 
@@ -421,9 +444,10 @@ const StorageReconnectForm: React.FC<{
 
 const DisconnectDialog: React.FC<{
   target: "db" | "storage";
+  isEnvDriven: boolean;
   onConfirm: () => void;
   onCancel: () => void;
-}> = ({ target, onConfirm, onCancel }) => (
+}> = ({ target, isEnvDriven, onConfirm, onCancel }) => (
   <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
     <div className="bg-white rounded-[2rem] shadow-2xl p-8 max-w-sm w-full space-y-5">
       <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto">
@@ -437,6 +461,12 @@ const DisconnectDialog: React.FC<{
           This will clear the {target === "db" ? "database" : "storage"} configuration.
           {target === "db" && " Blog posts and events will be unavailable until reconnected."}
         </p>
+        {isEnvDriven && (
+          <p className="mt-3 text-xs text-blue-600 font-bold bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+            This provider is set via environment variables and will reconnect on the next page load.
+            To permanently remove it, delete the env vars in your Vercel dashboard and redeploy.
+          </p>
+        )}
       </div>
       <div className="flex gap-3">
         <button
@@ -465,6 +495,9 @@ export const ConfigPanel: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter 
     dbProvider: "", storageProvider: "",
   });
 
+  // Track whether the current config comes from env vars (so we can warn on disconnect)
+  const [envDriven, setEnvDriven] = useState({ db: false, storage: false });
+
   // Which reconnect form is open: null | "db" | "storage"
   const [reconnectTarget, setReconnectTarget] = useState<null | "db" | "storage">(null);
 
@@ -482,6 +515,26 @@ export const ConfigPanel: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter 
 
     try {
       const cfg = (await adapter.getConfig?.()) || {} as any;
+
+      // Detect whether providers came from env vars by checking the server
+      // response for the special dbError field (set when init fails)
+      const dbHasEnvProvider   = !!(cfg.db?.provider);
+      const stHasEnvProvider   = !!(cfg.storage?.provider);
+      setEnvDriven({ db: dbHasEnvProvider, storage: stHasEnvProvider });
+
+      // If the GET /config returned a dbError, surface it
+      if (cfg.dbError) {
+        setStatus(s => ({
+          ...s,
+          db: "error",
+          dbMessage: cfg.dbError,
+          dbProvider: cfg.db?.provider || "unknown",
+          storage: stHasEnvProvider ? "ok" : "error",
+          storageMessage: stHasEnvProvider ? "Provider configured" : "No storage provider found",
+          storageProvider: cfg.storage?.provider || "",
+        }));
+        return;
+      }
 
       // ── DB test ────────────────────────────────────────────────────────────
       try {
@@ -529,26 +582,47 @@ export const ConfigPanel: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter 
     }
   };
 
+  // ── KEY FIX: disconnect updates local state only; no re-fetch ─────────────
+  // On Vercel, env vars always win so re-fetching immediately shows the
+  // provider as connected again — confusing the user. We update local UI
+  // state directly and only re-check if the saveConfig call throws.
   const handleDisconnect = async (target: "db" | "storage") => {
     setDisconnectTarget(null);
     try {
       if (target === "db") {
         await adapter.saveConfig?.({ db: { provider: "" } });
-        setStatus(s => ({ ...s, db: "idle", dbMessage: "Disconnected", dbProvider: "" }));
+        // Optimistically clear the local state without re-fetching from the server
+        setStatus(s => ({
+          ...s,
+          db: "idle",
+          dbMessage: envDriven.db
+            ? "Cleared locally — env var still active until you redeploy"
+            : "Disconnected",
+          dbProvider: "",
+        }));
       } else {
         await adapter.saveConfig?.({ storage: { provider: "" } });
-        setStatus(s => ({ ...s, storage: "idle", storageMessage: "Disconnected", storageProvider: "" }));
+        setStatus(s => ({
+          ...s,
+          storage: "idle",
+          storageMessage: envDriven.storage
+            ? "Cleared locally — env var still active until you redeploy"
+            : "Disconnected",
+          storageProvider: "",
+        }));
       }
+      // Do NOT call checkConnections() here — it would re-read env vars from
+      // the server and immediately flip the status back to "ok".
     } catch (e: any) {
-      // best-effort; re-check will pick up actual state
+      // Something genuinely went wrong — re-fetch to get the true state
+      checkConnections();
     }
-    checkConnections();
   };
 
-  const isTesting = status.db === "testing" || status.storage === "testing";
-  const hasDbError = status.db === "error";
-  const hasStorageError = status.storage === "error";
-  const allOk = status.db === "ok" && status.storage === "ok";
+  const isTesting        = status.db === "testing" || status.storage === "testing";
+  const hasDbError       = status.db === "error";
+  const hasStorageError  = status.storage === "error";
+  const allOk            = status.db === "ok" && status.storage === "ok";
 
   return (
     <>
@@ -556,6 +630,7 @@ export const ConfigPanel: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter 
       {disconnectTarget && (
         <DisconnectDialog
           target={disconnectTarget}
+          isEnvDriven={disconnectTarget === "db" ? envDriven.db : envDriven.storage}
           onConfirm={() => handleDisconnect(disconnectTarget)}
           onCancel={() => setDisconnectTarget(null)}
         />
@@ -583,104 +658,116 @@ export const ConfigPanel: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter 
 
           <div className="divide-y divide-slate-100">
             {/* ── DB row ────────────────────────────────────────────────────── */}
-            <div className="px-8 py-6 flex items-center gap-5">
-              <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center flex-shrink-0">
-                <svg className="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <ellipse cx="12" cy="5" rx="9" ry="3" />
-                  <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-                  <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-                </svg>
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="font-black text-slate-900">Database</span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${badgeClass(status.db)}`}>
-                    {badgeLabel(status.db, "Connected")}
-                  </span>
+            <div className="px-8 py-6">
+              <div className="flex items-center gap-5">
+                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <ellipse cx="12" cy="5" rx="9" ry="3" />
+                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
+                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+                  </svg>
                 </div>
-                <p className="text-sm text-slate-500 truncate">
-                  {status.dbProvider ? `Provider: ${status.dbProvider}` : "No provider detected"}
-                  {status.dbMessage ? ` — ${status.dbMessage}` : ""}
-                </p>
-              </div>
 
-              {/* DB action buttons */}
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {status.db === "ok" && (
-                  <button
-                    onClick={() => setDisconnectTarget("db")}
-                    title="Disconnect database"
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-slate-200 hover:border-rose-200"
-                  >
-                    <UnplugIcon />
-                    Disconnect
-                  </button>
-                )}
-                {status.db === "error" && (
-                  <button
-                    onClick={() => setReconnectTarget(reconnectTarget === "db" ? null : "db")}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-200"
-                  >
-                    {reconnectTarget === "db" ? "Hide" : "Reconnect"}
-                  </button>
-                )}
-                <StatusIcon s={status.db} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="font-black text-slate-900">Database</span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${badgeClass(status.db)}`}>
+                      {badgeLabel(status.db, "Connected")}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500 truncate">
+                    {status.dbProvider ? `Provider: ${status.dbProvider}` : "No provider detected"}
+                    {status.dbMessage ? ` — ${status.dbMessage}` : ""}
+                  </p>
+                </div>
+
+                {/* DB action buttons */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {status.db === "ok" && (
+                    <button
+                      onClick={() => setDisconnectTarget("db")}
+                      title="Disconnect database"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-slate-200 hover:border-rose-200"
+                    >
+                      <UnplugIcon />
+                      Disconnect
+                    </button>
+                  )}
+                  {(status.db === "error" || status.db === "idle") && (
+                    <button
+                      onClick={() => setReconnectTarget(reconnectTarget === "db" ? null : "db")}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors border border-indigo-200"
+                    >
+                      {reconnectTarget === "db" ? "Hide" : "Reconnect"}
+                    </button>
+                  )}
+                  <StatusIcon s={status.db} />
+                </div>
               </div>
+              {/* Env-var notice under the DB row when disconnected but env-driven */}
+              {status.db === "idle" && envDriven.db && (
+                <EnvVarNotice target="db" />
+              )}
             </div>
 
             {/* ── Storage row ───────────────────────────────────────────────── */}
-            <div className="px-8 py-6 flex items-center gap-5">
-              <div className="w-12 h-12 bg-violet-50 rounded-2xl flex items-center justify-center flex-shrink-0">
-                <svg className="w-6 h-6 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="17 8 12 3 7 8" />
-                  <line x1="12" y1="3" x2="12" y2="15" />
-                </svg>
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-1">
-                  <span className="font-black text-slate-900">File Storage</span>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${badgeClass(status.storage)}`}>
-                    {badgeLabel(status.storage, "Configured")}
-                  </span>
+            <div className="px-8 py-6">
+              <div className="flex items-center gap-5">
+                <div className="w-12 h-12 bg-violet-50 rounded-2xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-6 h-6 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
                 </div>
-                <p className="text-sm text-slate-500 truncate">
-                  {status.storageProvider && status.storageProvider !== "none"
-                    ? `Provider: ${status.storageProvider}`
-                    : "No provider detected"}
-                  {status.storageMessage ? ` — ${status.storageMessage}` : ""}
-                </p>
-              </div>
 
-              {/* Storage action buttons */}
-              <div className="flex items-center gap-2 flex-shrink-0">
-                {status.storage === "ok" && (
-                  <button
-                    onClick={() => setDisconnectTarget("storage")}
-                    title="Disconnect storage"
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-slate-200 hover:border-rose-200"
-                  >
-                    <UnplugIcon />
-                    Disconnect
-                  </button>
-                )}
-                {status.storage === "error" && (
-                  <button
-                    onClick={() => setReconnectTarget(reconnectTarget === "storage" ? null : "storage")}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-violet-600 hover:bg-violet-50 rounded-lg transition-colors border border-violet-200"
-                  >
-                    {reconnectTarget === "storage" ? "Hide" : "Reconnect"}
-                  </button>
-                )}
-                <StatusIcon s={status.storage} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3 mb-1">
+                    <span className="font-black text-slate-900">File Storage</span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${badgeClass(status.storage)}`}>
+                      {badgeLabel(status.storage, "Configured")}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500 truncate">
+                    {status.storageProvider && status.storageProvider !== "none"
+                      ? `Provider: ${status.storageProvider}`
+                      : "No provider detected"}
+                    {status.storageMessage ? ` — ${status.storageMessage}` : ""}
+                  </p>
+                </div>
+
+                {/* Storage action buttons */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {status.storage === "ok" && (
+                    <button
+                      onClick={() => setDisconnectTarget("storage")}
+                      title="Disconnect storage"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-slate-200 hover:border-rose-200"
+                    >
+                      <UnplugIcon />
+                      Disconnect
+                    </button>
+                  )}
+                  {(status.storage === "error" || status.storage === "idle") && (
+                    <button
+                      onClick={() => setReconnectTarget(reconnectTarget === "storage" ? null : "storage")}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-violet-600 hover:bg-violet-50 rounded-lg transition-colors border border-violet-200"
+                    >
+                      {reconnectTarget === "storage" ? "Hide" : "Reconnect"}
+                    </button>
+                  )}
+                  <StatusIcon s={status.storage} />
+                </div>
               </div>
+              {/* Env-var notice under the storage row when disconnected but env-driven */}
+              {status.storage === "idle" && envDriven.storage && (
+                <EnvVarNotice target="storage" />
+              )}
             </div>
           </div>
         </div>
 
-        {/* ── Error hint box — only shows relevant section ───────────────────── */}
+        {/* ── Error hint box ─────────────────────────────────────────────────── */}
         {(hasDbError || hasStorageError) && (
           <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6 space-y-3">
             <h3 className="font-black text-rose-700 flex items-center gap-2">
@@ -695,8 +782,8 @@ export const ConfigPanel: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter 
               {hasDbError && (
                 <>
                   <li>
-                    Ensure <code className="font-mono bg-rose-100 px-1 rounded">BLOG_DB_PROVIDER</code> and{" "}
-                    <code className="font-mono bg-rose-100 px-1 rounded">BLOG_DB_HOST</code> are set in Vercel env vars.
+                    Ensure <code className="font-mono bg-rose-100 px-1 rounded">BLOG_DB_PROVIDER</code> and the
+                    matching credentials are set in your Vercel environment variables.
                   </li>
                   <li>Redeploy on Vercel after adding or changing env vars — they don't hot-reload.</li>
                   <li>Check your database allows connections from Vercel's IP ranges.</li>
@@ -710,14 +797,13 @@ export const ConfigPanel: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter 
                     <code className="font-mono bg-rose-100 px-1 rounded">aws_s3</code>, or{" "}
                     <code className="font-mono bg-rose-100 px-1 rounded">local_storage</code>.
                   </li>
-                  {hasStorageError && !hasDbError && (
+                  {!hasDbError && (
                     <li>Add the matching credentials for your chosen storage provider.</li>
                   )}
                 </>
               )}
             </ul>
 
-            {/* Quick reconnect buttons for whichever services are broken */}
             <div className="flex gap-3 pt-1">
               {hasDbError && (
                 <button
@@ -739,7 +825,7 @@ export const ConfigPanel: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter 
           </div>
         )}
 
-        {/* ── Reconnect forms — scoped to the failing service ──────────────── */}
+        {/* ── Reconnect forms ───────────────────────────────────────────────── */}
         {reconnectTarget === "db" && (
           <DbReconnectForm
             adapter={adapter}

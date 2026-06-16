@@ -1,5 +1,8 @@
 declare module "pg" {
   export class Pool {
+    end() {
+      throw new Error('Method not implemented.');
+    }
     constructor(config?: any);
     query(queryText: string, values?: any[]): Promise<any>;
   }
