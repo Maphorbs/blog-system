@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { BlogSystemAdapter } from "../types";
+import { ConfigPanel } from "./ConfigPanel";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -111,305 +112,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   );
 };
 
-// ── ConfigPanel (live) ────────────────────────────────────────────────────────
-
-type ConnStatus = "idle" | "testing" | "ok" | "error";
-
-interface ProviderStatus {
-  db: ConnStatus; dbMessage: string; dbProvider: string;
-  storage: ConnStatus; storageMessage: string; storageProvider: string;
-}
-
-const ConfigPanel: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter }) => {
-  const [status, setStatus] = React.useState<ProviderStatus>({
-    db: "idle", dbMessage: "", dbProvider: "",
-    storage: "idle", storageMessage: "", storageProvider: "",
-  });
-  const [showReconnect, setShowReconnect] = React.useState(false);
-
-  React.useEffect(() => { checkConnections(); }, []);
-
-  const checkConnections = async () => {
-    setStatus(s => ({ ...s, db: "testing", storage: "testing", dbMessage: "Checking…", storageMessage: "Checking…" }));
-    try {
-      const cfg = (await adapter.getConfig?.()) || {} as any;
-
-      try {
-        await adapter.getBlogs();
-        setStatus(s => ({ ...s, db: "ok", dbMessage: "Connected and responding", dbProvider: cfg.db?.provider || "configured" }));
-      } catch (e: any) {
-        setStatus(s => ({ ...s, db: "error", dbMessage: e?.message || "Connection failed", dbProvider: cfg.db?.provider || "unknown" }));
-      }
-
-      const sp = cfg.storage?.provider;
-      if (sp) {
-        setStatus(s => ({ ...s, storage: "ok", storageMessage: "Provider configured", storageProvider: sp }));
-      } else {
-        setStatus(s => ({ ...s, storage: "error", storageMessage: "No storage provider found", storageProvider: "none" }));
-      }
-    } catch (e: any) {
-      setStatus(s => ({ ...s, db: "error", dbMessage: e?.message || "Could not reach config endpoint", storage: "error", storageMessage: "Config unavailable" }));
-    }
-  };
-
-  const badgeClass = (s: ConnStatus) =>
-    s === "ok"      ? "bg-emerald-50 text-emerald-600 border border-emerald-200" :
-    s === "error"   ? "bg-rose-50 text-rose-600 border border-rose-200" :
-    s === "testing" ? "bg-indigo-50 text-indigo-500 border border-indigo-200" :
-                      "bg-slate-100 text-slate-500 border border-slate-200";
-
-  const badgeLabel = (s: ConnStatus, okLabel: string) =>
-    s === "ok" ? okLabel : s === "error" ? "Failed" : s === "testing" ? "Testing…" : "Unknown";
-
-  const StatusIcon = ({ s }: { s: ConnStatus }) => {
-    if (s === "testing") return <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />;
-    if (s === "ok")      return <svg className="w-5 h-5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>;
-    if (s === "error")   return <svg className="w-5 h-5 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>;
-    return <div className="w-5 h-5 rounded-full bg-slate-200" />;
-  };
-
-  const isTesting = status.db === "testing" || status.storage === "testing";
-  const hasError  = status.db === "error"   || status.storage === "error";
-  const allOk     = status.db === "ok"      && status.storage === "ok";
-
-  return (
-    <div className="space-y-6 max-w-2xl">
-      {/* Status card */}
-      <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-xl shadow-slate-200/20 overflow-hidden">
-        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-black tracking-tight">Connection Status</h2>
-            <p className="text-sm text-slate-400 font-medium mt-0.5">Live status of your database and storage providers</p>
-          </div>
-          <button
-            onClick={checkConnections}
-            disabled={isTesting}
-            className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-colors disabled:opacity-50"
-          >
-            <svg className={`w-4 h-4 ${isTesting ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-            </svg>
-            Test Connections
-          </button>
-        </div>
-
-        <div className="divide-y divide-slate-100">
-          {/* DB */}
-          <div className="px-8 py-6 flex items-center gap-5">
-            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center flex-shrink-0">
-              <svg className="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-1">
-                <span className="font-black text-slate-900">Database</span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${badgeClass(status.db)}`}>
-                  {badgeLabel(status.db, "Connected")}
-                </span>
-              </div>
-              <p className="text-sm text-slate-500 truncate">
-                {status.dbProvider ? `Provider: ${status.dbProvider}` : "No provider detected"}
-                {status.dbMessage ? ` — ${status.dbMessage}` : ""}
-              </p>
-            </div>
-            <StatusIcon s={status.db} />
-          </div>
-
-          {/* Storage */}
-          <div className="px-8 py-6 flex items-center gap-5">
-            <div className="w-12 h-12 bg-violet-50 rounded-2xl flex items-center justify-center flex-shrink-0">
-              <svg className="w-6 h-6 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
-              </svg>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-1">
-                <span className="font-black text-slate-900">File Storage</span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${badgeClass(status.storage)}`}>
-                  {badgeLabel(status.storage, "Configured")}
-                </span>
-              </div>
-              <p className="text-sm text-slate-500 truncate">
-                {status.storageProvider ? `Provider: ${status.storageProvider}` : "No provider detected"}
-                {status.storageMessage ? ` — ${status.storageMessage}` : ""}
-              </p>
-            </div>
-            <StatusIcon s={status.storage} />
-          </div>
-        </div>
-      </div>
-
-      {/* Error help */}
-      {hasError && (
-        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6">
-          <h3 className="font-black text-rose-700 mb-2 flex items-center gap-2">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-            </svg>
-            Connection issue detected
-          </h3>
-          <ul className="text-sm text-rose-600 space-y-1 list-disc list-inside font-medium">
-            <li>Ensure Vercel env vars are set: <code className="font-mono bg-rose-100 px-1 rounded">BLOG_DB_PROVIDER</code>, <code className="font-mono bg-rose-100 px-1 rounded">BLOG_DB_HOST</code>, etc.</li>
-            <li>Redeploy on Vercel after adding or changing env vars — they don't hot-reload.</li>
-            <li>Check that your database allows connections from Vercel's IP ranges.</li>
-          </ul>
-          <button
-            onClick={() => setShowReconnect(v => !v)}
-            className="mt-4 text-sm font-black text-rose-700 underline hover:no-underline"
-          >
-            {showReconnect ? "Hide" : "Re-configure connection manually →"}
-          </button>
-        </div>
-      )}
-
-      {showReconnect && (
-        <ReconnectForm adapter={adapter} onSuccess={() => { setShowReconnect(false); checkConnections(); }} />
-      )}
-
-      {/* All good */}
-      {allOk && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 flex items-center gap-4">
-          <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
-            <svg className="w-6 h-6 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
-          </div>
-          <div>
-            <p className="font-black text-emerald-800">All systems operational</p>
-            <p className="text-sm text-emerald-600 font-medium">Your database and storage are connected and responding normally.</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// ── Reconnect form ────────────────────────────────────────────────────────────
-
-const PROVIDERS = [
-  { id: "postgres",       label: "PostgreSQL" },
-  { id: "supabase",       label: "Supabase" },
-  { id: "mongodb",        label: "MongoDB" },
-  { id: "mysql",          label: "MySQL" },
-  { id: "firebase",       label: "Firebase" },
-  { id: "digitalocean_db",label: "DigitalOcean DB" },
-  { id: "aws_rds",        label: "AWS RDS" },
-];
-
-const inp = "w-full bg-white border border-slate-200 px-4 py-2.5 rounded-xl text-sm text-black placeholder:text-slate-400 outline-none focus:border-indigo-500";
-
-const ReconnectForm: React.FC<{ adapter: BlogSystemAdapter; onSuccess: () => void }> = ({ adapter, onSuccess }) => {
-  const [provider, setProvider] = React.useState("postgres");
-  const [fields,   setFields]   = React.useState<Record<string, string>>({});
-  const [saving,   setSaving]   = React.useState(false);
-  const [error,    setError]    = React.useState("");
-
-  const set = (k: string, v: string) => setFields(f => ({ ...f, [k]: v }));
-
-  const handleSave = async () => {
-    setSaving(true); setError("");
-    try {
-      const ok = await adapter.saveConfig?.({ db: { provider, ...fields } });
-      if (ok) { onSuccess(); }
-      else { setError("Could not connect. Check your credentials and try again."); }
-    } catch (e: any) {
-      setError(e?.message || "Connection failed.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-xl shadow-slate-200/20 p-8 space-y-6">
-      <h3 className="font-black text-slate-900 text-lg">Manual Reconnect</h3>
-
-      <div>
-        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Provider</label>
-        <select value={provider} onChange={e => { setProvider(e.target.value); setFields({}); }} className={inp}>
-          {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
-        </select>
-      </div>
-
-      {(["postgres","mysql","digitalocean_db","aws_rds"].includes(provider)) && (
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Host</label>
-            <input className={inp} placeholder="db.example.com" onChange={e => set("host", e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Port</label>
-            <input className={inp} placeholder="5432" onChange={e => set("port", e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Database Name</label>
-            <input className={inp} onChange={e => set("dbName", e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">User</label>
-            <input className={inp} onChange={e => set("user", e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Password</label>
-            <input type="password" className={inp} onChange={e => set("password", e.target.value)} />
-          </div>
-        </div>
-      )}
-
-      {provider === "supabase" && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Supabase URL</label>
-            <input className={inp} placeholder="https://xyz.supabase.co" onChange={e => set("host", e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Anon Key</label>
-            <input type="password" className={inp} onChange={e => set("anonKey", e.target.value)} />
-          </div>
-        </div>
-      )}
-
-      {provider === "mongodb" && (
-        <div>
-          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Connection String</label>
-          <input type="password" className={inp} placeholder="mongodb+srv://user:pass@cluster.mongodb.net/db" onChange={e => set("connectionString", e.target.value)} />
-        </div>
-      )}
-
-      {provider === "firebase" && (
-        <div className="space-y-4">
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">API Key</label>
-            <input type="password" className={inp} onChange={e => set("apiKey", e.target.value)} />
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Project ID</label>
-            <input className={inp} onChange={e => set("projectId", e.target.value)} />
-          </div>
-        </div>
-      )}
-
-      {error && <p className="text-sm text-rose-600 font-bold bg-rose-50 border border-rose-200 px-4 py-3 rounded-xl">{error}</p>}
-
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="w-full py-3 bg-indigo-600 text-white font-black rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-      >
-        {saving && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
-        {saving ? "Connecting…" : "Test & Save Connection"}
-      </button>
-    </div>
-  );
-};
-
-// ── Other panels (unchanged) ──────────────────────────────────────────────────
+// ── Other panels ──────────────────────────────────────────────────────────────
 
 const OverviewPanel = ({ stats, onNewPost, recentLogs }: any) => (
   <>
     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-      <StatCard label="Total Blogs"    value={stats.blogs.toString()}          trend="+12% this month" icon={<PostIcon    className="text-blue-600" />}    bg="bg-blue-600/5" />
-      <StatCard label="Active Events"  value={stats.events.toString()}         trend="+2 new this week" icon={<EventIcon   className="text-violet-600" />}  bg="bg-violet-600/5" />
-      <StatCard label="Total Traffic"  value={stats.views.toLocaleString()}    trend="+8.4k today"     icon={<AnalyticIcon className="text-emerald-600" />} bg="bg-emerald-600/5" />
+      <StatCard label="Total Blogs"    value={stats.blogs.toString()}       trend="+12% this month"  icon={<PostIcon     className="text-blue-600" />}    bg="bg-blue-600/5" />
+      <StatCard label="Active Events"  value={stats.events.toString()}      trend="+2 new this week" icon={<EventIcon    className="text-violet-600" />}  bg="bg-violet-600/5" />
+      <StatCard label="Total Traffic"  value={stats.views.toLocaleString()} trend="+8.4k today"      icon={<AnalyticIcon className="text-emerald-600" />} bg="bg-emerald-600/5" />
     </div>
 
     <section className="mb-16">
@@ -420,8 +130,8 @@ const OverviewPanel = ({ stats, onNewPost, recentLogs }: any) => (
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <CreateCard title="Blog Article"    desc="Deep dive stories, industry news, and long-form updates for your readers." icon="✍️" color="from-blue-600 to-indigo-600"   onClick={() => onNewPost("blog")} />
-        <CreateCard title="Event Schedule"  desc="Promote upcoming meetups, webinars, and community gatherings."            icon="🗓️" color="from-violet-600 to-purple-600" onClick={() => onNewPost("event")} />
+        <CreateCard title="Blog Article"   desc="Deep dive stories, industry news, and long-form updates for your readers." icon="✍️" color="from-blue-600 to-indigo-600"   onClick={() => onNewPost("blog")} />
+        <CreateCard title="Event Schedule" desc="Promote upcoming meetups, webinars, and community gatherings."            icon="🗓️" color="from-violet-600 to-purple-600" onClick={() => onNewPost("event")} />
       </div>
     </section>
 
@@ -584,15 +294,25 @@ const CategoriesPanel = ({ categories = [], onCreate, onDelete }: any) => {
         </div>
       </div>
       <div className="flex gap-4 mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">
-        <input type="text" placeholder="New Category Name" value={name} onChange={e => setName(e.target.value)}
-          className="flex-1 bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm text-black outline-none focus:border-indigo-500" />
-        <select value={type} onChange={e => setType(e.target.value as any)}
-          className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm text-black outline-none focus:border-indigo-500 cursor-pointer">
+        <input
+          type="text"
+          placeholder="New Category Name"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          className="flex-1 bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm text-black outline-none focus:border-indigo-500"
+        />
+        <select
+          value={type}
+          onChange={e => setType(e.target.value as any)}
+          className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm text-black outline-none focus:border-indigo-500 cursor-pointer"
+        >
           <option value="blog">Blog Category</option>
           <option value="event">Event Category</option>
         </select>
-        <button onClick={() => { if (name && onCreate) { onCreate(name, type); setName(""); } }}
-          className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors">
+        <button
+          onClick={() => { if (name && onCreate) { onCreate(name, type); setName(""); } }}
+          className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors"
+        >
           Add
         </button>
       </div>
