@@ -1,6 +1,6 @@
 {
   "name": "@maphorbs/blog-system",
-  "version": "1.0.4",
+  "version": "1.0.10",
   "files": [
     "dist"
   ],
@@ -18,10 +18,15 @@
       "types": "./dist/server.d.ts",
       "import": "./dist/server.mjs",
       "require": "./dist/server.js"
+    },
+    "./env-config": {
+      "types": "./dist/env-config/index.d.ts",
+      "import": "./dist/env-config/index.mjs",
+      "require": "./dist/env-config/index.js"
     }
   },
   "scripts": {
-    "build": "tsup index.ts server.ts --format cjs,esm --dts --no-splitting --external react --external react-dom --external next --external react-hot-toast --external lucide-react --external react-quill-new --external react-quill-new/dist/quill.snow.css --external pg --external mongodb --external mysql2 --external sqlite3 --external sqlite --external firebase-admin --external uuid --external @aws-sdk/client-s3"
+    "build": "tsup index.ts server.ts env-config/index.ts --format cjs,esm --dts --external react --external react-dom --external next --external react-hot-toast --external lucide-react --external react-quill-new --external \"react-quill-new/dist/quill.snow.css\" --external pg --external mongodb --external mysql2 --external sqlite3 --external sqlite --external firebase-admin --external uuid --external \"@aws-sdk/*\""
   },
   "keywords": [
     "nextjs",
@@ -35,20 +40,33 @@
     "mongodb",
     "mysql",
     "sqlite",
-    "firebase"
+    "firebase",
+    "vercel",
+    "env-config"
   ],
   "author": "Yayi Diaspora Movement",
   "license": "MIT",
   "peerDependencies": {
-    "lucide-react": "^1.0.0",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "firebase-admin": ">=11.0.0 <15.0.0",
+    "lucide-react": "^0.300.0 || ^1.0.0",
+    "mongodb": ">=5.0.0 <8.0.0",
+    "mysql2": "^3.0.0",
     "next": "^13.0.0 || ^14.0.0 || ^15.0.0 || ^16.0.0",
+    "pg": "^8.0.0",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0",
     "react-hot-toast": "^2.0.0",
-    "react-quill-new": "^3.0.0"
+    "react-quill-new": "^3.0.0",
+    "sqlite": "^5.0.0",
+    "sqlite3": ">=5.0.0 <7.0.0",
+    "uuid": ">=9.0.0 <15.0.0"
   },
   "peerDependenciesMeta": {
-    "pg": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "firebase-admin": {
       "optional": true
     },
     "mongodb": {
@@ -57,13 +75,13 @@
     "mysql2": {
       "optional": true
     },
-    "sqlite3": {
+    "pg": {
       "optional": true
     },
     "sqlite": {
       "optional": true
     },
-    "firebase-admin": {
+    "sqlite3": {
       "optional": true
     },
     "uuid": {
@@ -73,8 +91,8 @@
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.1048.0",
     "@types/node": "^20.0.0",
-    "@types/react": "^18.0.0 || ^19.0.0",
-    "@types/react-dom": "^18.0.0 || ^19.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
     "tsup": "^8.0.0",
     "typescript": "^5.0.0"
   }

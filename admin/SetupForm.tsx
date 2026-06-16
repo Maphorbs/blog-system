@@ -14,7 +14,7 @@ export const SetupForm: React.FC<{ onComplete: (config: any) => void }> = ({ onC
 
     try {
       let config;
-      
+
       if (mode === "local") {
         config = {
           dbType: "local",
@@ -22,10 +22,9 @@ export const SetupForm: React.FC<{ onComplete: (config: any) => void }> = ({ onC
           useLocal: true
         };
       } else {
-        // Encrypt the API Key and Base URL for security
         const encryptedKey = await Security.encrypt(apiKey, masterPassword);
         const encryptedUrl = await Security.encrypt(baseUrl, masterPassword);
-        
+
         config = {
           dbType: "api",
           encryptedKey,
@@ -48,15 +47,15 @@ export const SetupForm: React.FC<{ onComplete: (config: any) => void }> = ({ onC
     <div className="max-w-md mx-auto p-8 bg-white rounded-2xl shadow-xl border border-gray-100">
       <h2 className="text-2xl font-bold mb-2 text-gray-800">Connect Blog System</h2>
       <p className="text-gray-500 text-sm mb-6">Choose how you want to connect your database.</p>
-      
+
       <div className="flex gap-2 mb-6 p-1 bg-gray-100 rounded-lg">
-        <button 
+        <button
           onClick={() => setMode("api")}
           className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${mode === "api" ? "bg-white shadow-sm text-green-600" : "text-gray-500"}`}
         >
           API (Production)
         </button>
-        <button 
+        <button
           onClick={() => setMode("local")}
           className={`flex-1 py-2 text-sm font-bold rounded-md transition-all ${mode === "local" ? "bg-white shadow-sm text-green-600" : "text-gray-500"}`}
         >
@@ -73,7 +72,7 @@ export const SetupForm: React.FC<{ onComplete: (config: any) => void }> = ({ onC
                 type="url"
                 value={baseUrl}
                 onChange={(e) => setBaseUrl(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none text-black placeholder:text-gray-400"
                 placeholder="https://api.yourwebsite.com"
                 required
               />
@@ -84,7 +83,7 @@ export const SetupForm: React.FC<{ onComplete: (config: any) => void }> = ({ onC
                 type="password"
                 value={apiKey}
                 onChange={(e) => setApiKey(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none"
+                className="w-full px-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-green-500 outline-none text-black placeholder:text-gray-400"
                 placeholder="Enter your API secret"
                 required
               />
@@ -96,7 +95,7 @@ export const SetupForm: React.FC<{ onComplete: (config: any) => void }> = ({ onC
                 type="password"
                 value={masterPassword}
                 onChange={(e) => setMasterPassword(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border-2 border-green-200 focus:border-green-500 outline-none"
+                className="w-full px-4 py-2 rounded-lg border-2 border-green-200 focus:border-green-500 outline-none text-black placeholder:text-gray-400"
                 placeholder="Create a master password"
                 required
               />
@@ -113,7 +112,7 @@ export const SetupForm: React.FC<{ onComplete: (config: any) => void }> = ({ onC
             <p className="text-sm">Local mode stores everything in your browser's LocalStorage. No server needed!</p>
           </div>
         )}
-        
+
         <button
           type="submit"
           disabled={isEncrypting}

@@ -1,8 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
+import { BlogSystemAdapter } from "../types";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface DashboardViewProps {
+  adapter: BlogSystemAdapter;
   activeTab: string;
   onTabChange: (tab: string) => void;
   onNewPost: (type: "blog" | "event") => void;
@@ -11,27 +15,28 @@ interface DashboardViewProps {
   onDeletePost?: (type: "blog" | "event", id: string) => void;
   onToggleStatus?: (type: "blog" | "event", item: any) => void;
   onLogout: () => void;
-  stats: {
-    blogs: number;
-    events: number;
-    views: number;
-  };
+  stats: { blogs: number; events: number; views: number };
   recentLogs?: { title: string; type: string; status: string; time: string; dateObj: Date }[];
   blogs?: any[];
   events?: any[];
   categories?: any[];
-  onCreateCategory?: (name: string, type: 'blog'|'event') => void;
+  onCreateCategory?: (name: string, type: "blog" | "event") => void;
   onDeleteCategory?: (id: string) => void;
 }
 
-export const DashboardView: React.FC<DashboardViewProps> = ({ 
-  activeTab, onTabChange, onNewPost, onEditPost, onViewPost, onDeletePost, onToggleStatus, onLogout, 
-  stats, recentLogs = [], blogs = [], events = [], categories = [], onCreateCategory, onDeleteCategory 
+// ── Main component ────────────────────────────────────────────────────────────
+
+export const DashboardView: React.FC<DashboardViewProps> = ({
+  adapter,
+  activeTab, onTabChange, onNewPost, onEditPost, onViewPost, onDeletePost,
+  onToggleStatus, onLogout,
+  stats, recentLogs = [], blogs = [], events = [], categories = [],
+  onCreateCategory, onDeleteCategory,
 }) => {
   return (
     <div className="min-h-screen bg-[#f8fafc] flex text-[#1e293b]">
       {/* Sidebar */}
-      <aside className="w-72 bg-white border-r border-slate-200/60 flex flex-col p-8 hidden lg:flex sticky top-0 h-screen">
+      <aside className="w-72 bg-white border-r border-slate-200/60 flex-col p-8 hidden lg:flex sticky top-0 h-screen">
         <div className="flex items-center gap-4 mb-12">
           <div className="w-12 h-12 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-100">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -45,16 +50,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         <nav className="flex-1 space-y-1.5">
-          <SidebarItem icon={<HomeIcon />} label="Dashboard" active={activeTab === "dashboard"} onClick={() => onTabChange("dashboard")} />
-          <SidebarItem icon={<PostIcon />} label="Blog Posts" active={activeTab === "blogs"} onClick={() => onTabChange("blogs")} />
-          <SidebarItem icon={<EventIcon />} label="Events" active={activeTab === "events"} onClick={() => onTabChange("events")} />
-          <SidebarItem icon={<AnalyticIcon />} label="Analytics" active={activeTab === "analytics"} onClick={() => onTabChange("analytics")} />
+          <SidebarItem icon={<HomeIcon />}     label="Dashboard"     active={activeTab === "dashboard"}  onClick={() => onTabChange("dashboard")} />
+          <SidebarItem icon={<PostIcon />}     label="Blog Posts"    active={activeTab === "blogs"}      onClick={() => onTabChange("blogs")} />
+          <SidebarItem icon={<EventIcon />}    label="Events"        active={activeTab === "events"}     onClick={() => onTabChange("events")} />
+          <SidebarItem icon={<AnalyticIcon />} label="Analytics"     active={activeTab === "analytics"}  onClick={() => onTabChange("analytics")} />
           <div className="pt-8 pb-4 px-4 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Settings</div>
-          <SidebarItem icon={<CategoryIcon />} label="Categories" active={activeTab === "categories"} onClick={() => onTabChange("categories")} />
-          <SidebarItem icon={<SettingsIcon />} label="Configuration" active={activeTab === "config"} onClick={() => onTabChange("config")} />
+          <SidebarItem icon={<CategoryIcon />} label="Categories"    active={activeTab === "categories"} onClick={() => onTabChange("categories")} />
+          <SidebarItem icon={<SettingsIcon />} label="Configuration" active={activeTab === "config"}     onClick={() => onTabChange("config")} />
         </nav>
 
-        <button 
+        <button
           onClick={onLogout}
           className="mt-auto group flex items-center gap-3 px-6 py-4 rounded-2xl text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-all font-bold"
         >
@@ -65,18 +70,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </button>
       </aside>
 
-      {/* Main Content */}
+      {/* Main */}
       <main className="flex-1 overflow-y-auto">
-        {/* Header */}
         <header className="bg-white/80 backdrop-blur-xl border-b border-slate-200/60 px-10 py-6 flex justify-between items-center sticky top-0 z-20">
           <div>
             <h1 className="text-2xl font-black tracking-tight">
-              {activeTab === "dashboard" && "Console Overview"}
-              {activeTab === "blogs" && "Blog Management"}
-              {activeTab === "events" && "Event Management"}
-              {activeTab === "analytics" && "System Analytics"}
+              {activeTab === "dashboard"  && "Console Overview"}
+              {activeTab === "blogs"      && "Blog Management"}
+              {activeTab === "events"     && "Event Management"}
+              {activeTab === "analytics"  && "System Analytics"}
               {activeTab === "categories" && "Category Management"}
-              {activeTab === "config" && "System Configuration"}
+              {activeTab === "config"     && "System Configuration"}
             </h1>
             <p className="text-sm text-slate-400 font-medium">Welcome back, Administrator</p>
           </div>
@@ -95,38 +99,317 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </header>
 
         <div className="p-10 max-w-7xl mx-auto">
-          {activeTab === "dashboard" && (
-            <OverviewPanel stats={stats} onNewPost={onNewPost} recentLogs={recentLogs} />
-          )}
-          {activeTab === "blogs" && (
-            <BlogsListPanel blogs={blogs} onNew={() => onNewPost("blog")} onView={(b: any) => onViewPost?.('blog', b)} onEdit={(b: any) => onEditPost?.('blog', b)} onDelete={(id: string) => onDeletePost?.('blog', id)} onToggleStatus={(b: any) => onToggleStatus?.('blog', b)} />
-          )}
-          {activeTab === "events" && (
-            <EventsListPanel events={events} onNew={() => onNewPost("event")} onView={(e: any) => onViewPost?.('event', e)} onEdit={(e: any) => onEditPost?.('event', e)} onDelete={(id: string) => onDeletePost?.('event', id)} onToggleStatus={(e: any) => onToggleStatus?.('event', e)} />
-          )}
-          {activeTab === "analytics" && (
-            <AnalyticsPanel stats={stats} />
-          )}
-          {activeTab === "categories" && (
-            <CategoriesPanel categories={categories} onCreate={onCreateCategory} onDelete={onDeleteCategory} />
-          )}
-          {activeTab === "config" && (
-            <ConfigPanel />
-          )}
+          {activeTab === "dashboard"  && <OverviewPanel stats={stats} onNewPost={onNewPost} recentLogs={recentLogs} />}
+          {activeTab === "blogs"      && <BlogsListPanel  blogs={blogs}   onNew={() => onNewPost("blog")}  onView={(b: any) => onViewPost?.("blog",  b)} onEdit={(b: any) => onEditPost?.("blog",  b)} onDelete={(id: string) => onDeletePost?.("blog",  id)} onToggleStatus={(b: any) => onToggleStatus?.("blog",  b)} />}
+          {activeTab === "events"     && <EventsListPanel events={events} onNew={() => onNewPost("event")} onView={(e: any) => onViewPost?.("event", e)} onEdit={(e: any) => onEditPost?.("event", e)} onDelete={(id: string) => onDeletePost?.("event", id)} onToggleStatus={(e: any) => onToggleStatus?.("event", e)} />}
+          {activeTab === "analytics"  && <AnalyticsPanel stats={stats} />}
+          {activeTab === "categories" && <CategoriesPanel categories={categories} onCreate={onCreateCategory} onDelete={onDeleteCategory} />}
+          {activeTab === "config"     && <ConfigPanel adapter={adapter} />}
         </div>
       </main>
     </div>
   );
 };
 
-// --- SUB PANELS ---
+// ── ConfigPanel (live) ────────────────────────────────────────────────────────
+
+type ConnStatus = "idle" | "testing" | "ok" | "error";
+
+interface ProviderStatus {
+  db: ConnStatus; dbMessage: string; dbProvider: string;
+  storage: ConnStatus; storageMessage: string; storageProvider: string;
+}
+
+const ConfigPanel: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter }) => {
+  const [status, setStatus] = React.useState<ProviderStatus>({
+    db: "idle", dbMessage: "", dbProvider: "",
+    storage: "idle", storageMessage: "", storageProvider: "",
+  });
+  const [showReconnect, setShowReconnect] = React.useState(false);
+
+  React.useEffect(() => { checkConnections(); }, []);
+
+  const checkConnections = async () => {
+    setStatus(s => ({ ...s, db: "testing", storage: "testing", dbMessage: "Checking…", storageMessage: "Checking…" }));
+    try {
+      const cfg = (await adapter.getConfig?.()) || {} as any;
+
+      try {
+        await adapter.getBlogs();
+        setStatus(s => ({ ...s, db: "ok", dbMessage: "Connected and responding", dbProvider: cfg.db?.provider || "configured" }));
+      } catch (e: any) {
+        setStatus(s => ({ ...s, db: "error", dbMessage: e?.message || "Connection failed", dbProvider: cfg.db?.provider || "unknown" }));
+      }
+
+      const sp = cfg.storage?.provider;
+      if (sp) {
+        setStatus(s => ({ ...s, storage: "ok", storageMessage: "Provider configured", storageProvider: sp }));
+      } else {
+        setStatus(s => ({ ...s, storage: "error", storageMessage: "No storage provider found", storageProvider: "none" }));
+      }
+    } catch (e: any) {
+      setStatus(s => ({ ...s, db: "error", dbMessage: e?.message || "Could not reach config endpoint", storage: "error", storageMessage: "Config unavailable" }));
+    }
+  };
+
+  const badgeClass = (s: ConnStatus) =>
+    s === "ok"      ? "bg-emerald-50 text-emerald-600 border border-emerald-200" :
+    s === "error"   ? "bg-rose-50 text-rose-600 border border-rose-200" :
+    s === "testing" ? "bg-indigo-50 text-indigo-500 border border-indigo-200" :
+                      "bg-slate-100 text-slate-500 border border-slate-200";
+
+  const badgeLabel = (s: ConnStatus, okLabel: string) =>
+    s === "ok" ? okLabel : s === "error" ? "Failed" : s === "testing" ? "Testing…" : "Unknown";
+
+  const StatusIcon = ({ s }: { s: ConnStatus }) => {
+    if (s === "testing") return <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />;
+    if (s === "ok")      return <svg className="w-5 h-5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>;
+    if (s === "error")   return <svg className="w-5 h-5 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6M9 9l6 6"/></svg>;
+    return <div className="w-5 h-5 rounded-full bg-slate-200" />;
+  };
+
+  const isTesting = status.db === "testing" || status.storage === "testing";
+  const hasError  = status.db === "error"   || status.storage === "error";
+  const allOk     = status.db === "ok"      && status.storage === "ok";
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      {/* Status card */}
+      <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-xl shadow-slate-200/20 overflow-hidden">
+        <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-black tracking-tight">Connection Status</h2>
+            <p className="text-sm text-slate-400 font-medium mt-0.5">Live status of your database and storage providers</p>
+          </div>
+          <button
+            onClick={checkConnections}
+            disabled={isTesting}
+            className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-sm transition-colors disabled:opacity-50"
+          >
+            <svg className={`w-4 h-4 ${isTesting ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+            Test Connections
+          </button>
+        </div>
+
+        <div className="divide-y divide-slate-100">
+          {/* DB */}
+          <div className="px-8 py-6 flex items-center gap-5">
+            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center flex-shrink-0">
+              <svg className="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-1">
+                <span className="font-black text-slate-900">Database</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${badgeClass(status.db)}`}>
+                  {badgeLabel(status.db, "Connected")}
+                </span>
+              </div>
+              <p className="text-sm text-slate-500 truncate">
+                {status.dbProvider ? `Provider: ${status.dbProvider}` : "No provider detected"}
+                {status.dbMessage ? ` — ${status.dbMessage}` : ""}
+              </p>
+            </div>
+            <StatusIcon s={status.db} />
+          </div>
+
+          {/* Storage */}
+          <div className="px-8 py-6 flex items-center gap-5">
+            <div className="w-12 h-12 bg-violet-50 rounded-2xl flex items-center justify-center flex-shrink-0">
+              <svg className="w-6 h-6 text-violet-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-1">
+                <span className="font-black text-slate-900">File Storage</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${badgeClass(status.storage)}`}>
+                  {badgeLabel(status.storage, "Configured")}
+                </span>
+              </div>
+              <p className="text-sm text-slate-500 truncate">
+                {status.storageProvider ? `Provider: ${status.storageProvider}` : "No provider detected"}
+                {status.storageMessage ? ` — ${status.storageMessage}` : ""}
+              </p>
+            </div>
+            <StatusIcon s={status.storage} />
+          </div>
+        </div>
+      </div>
+
+      {/* Error help */}
+      {hasError && (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-6">
+          <h3 className="font-black text-rose-700 mb-2 flex items-center gap-2">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            Connection issue detected
+          </h3>
+          <ul className="text-sm text-rose-600 space-y-1 list-disc list-inside font-medium">
+            <li>Ensure Vercel env vars are set: <code className="font-mono bg-rose-100 px-1 rounded">BLOG_DB_PROVIDER</code>, <code className="font-mono bg-rose-100 px-1 rounded">BLOG_DB_HOST</code>, etc.</li>
+            <li>Redeploy on Vercel after adding or changing env vars — they don't hot-reload.</li>
+            <li>Check that your database allows connections from Vercel's IP ranges.</li>
+          </ul>
+          <button
+            onClick={() => setShowReconnect(v => !v)}
+            className="mt-4 text-sm font-black text-rose-700 underline hover:no-underline"
+          >
+            {showReconnect ? "Hide" : "Re-configure connection manually →"}
+          </button>
+        </div>
+      )}
+
+      {showReconnect && (
+        <ReconnectForm adapter={adapter} onSuccess={() => { setShowReconnect(false); checkConnections(); }} />
+      )}
+
+      {/* All good */}
+      {allOk && (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 flex items-center gap-4">
+          <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+            <svg className="w-6 h-6 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          </div>
+          <div>
+            <p className="font-black text-emerald-800">All systems operational</p>
+            <p className="text-sm text-emerald-600 font-medium">Your database and storage are connected and responding normally.</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Reconnect form ────────────────────────────────────────────────────────────
+
+const PROVIDERS = [
+  { id: "postgres",       label: "PostgreSQL" },
+  { id: "supabase",       label: "Supabase" },
+  { id: "mongodb",        label: "MongoDB" },
+  { id: "mysql",          label: "MySQL" },
+  { id: "firebase",       label: "Firebase" },
+  { id: "digitalocean_db",label: "DigitalOcean DB" },
+  { id: "aws_rds",        label: "AWS RDS" },
+];
+
+const inp = "w-full bg-white border border-slate-200 px-4 py-2.5 rounded-xl text-sm text-black placeholder:text-slate-400 outline-none focus:border-indigo-500";
+
+const ReconnectForm: React.FC<{ adapter: BlogSystemAdapter; onSuccess: () => void }> = ({ adapter, onSuccess }) => {
+  const [provider, setProvider] = React.useState("postgres");
+  const [fields,   setFields]   = React.useState<Record<string, string>>({});
+  const [saving,   setSaving]   = React.useState(false);
+  const [error,    setError]    = React.useState("");
+
+  const set = (k: string, v: string) => setFields(f => ({ ...f, [k]: v }));
+
+  const handleSave = async () => {
+    setSaving(true); setError("");
+    try {
+      const ok = await adapter.saveConfig?.({ db: { provider, ...fields } });
+      if (ok) { onSuccess(); }
+      else { setError("Could not connect. Check your credentials and try again."); }
+    } catch (e: any) {
+      setError(e?.message || "Connection failed.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-[2rem] border border-slate-200/60 shadow-xl shadow-slate-200/20 p-8 space-y-6">
+      <h3 className="font-black text-slate-900 text-lg">Manual Reconnect</h3>
+
+      <div>
+        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Provider</label>
+        <select value={provider} onChange={e => { setProvider(e.target.value); setFields({}); }} className={inp}>
+          {PROVIDERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+        </select>
+      </div>
+
+      {(["postgres","mysql","digitalocean_db","aws_rds"].includes(provider)) && (
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Host</label>
+            <input className={inp} placeholder="db.example.com" onChange={e => set("host", e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Port</label>
+            <input className={inp} placeholder="5432" onChange={e => set("port", e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Database Name</label>
+            <input className={inp} onChange={e => set("dbName", e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">User</label>
+            <input className={inp} onChange={e => set("user", e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Password</label>
+            <input type="password" className={inp} onChange={e => set("password", e.target.value)} />
+          </div>
+        </div>
+      )}
+
+      {provider === "supabase" && (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Supabase URL</label>
+            <input className={inp} placeholder="https://xyz.supabase.co" onChange={e => set("host", e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Anon Key</label>
+            <input type="password" className={inp} onChange={e => set("anonKey", e.target.value)} />
+          </div>
+        </div>
+      )}
+
+      {provider === "mongodb" && (
+        <div>
+          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Connection String</label>
+          <input type="password" className={inp} placeholder="mongodb+srv://user:pass@cluster.mongodb.net/db" onChange={e => set("connectionString", e.target.value)} />
+        </div>
+      )}
+
+      {provider === "firebase" && (
+        <div className="space-y-4">
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">API Key</label>
+            <input type="password" className={inp} onChange={e => set("apiKey", e.target.value)} />
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Project ID</label>
+            <input className={inp} onChange={e => set("projectId", e.target.value)} />
+          </div>
+        </div>
+      )}
+
+      {error && <p className="text-sm text-rose-600 font-bold bg-rose-50 border border-rose-200 px-4 py-3 rounded-xl">{error}</p>}
+
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full py-3 bg-indigo-600 text-white font-black rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+      >
+        {saving && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+        {saving ? "Connecting…" : "Test & Save Connection"}
+      </button>
+    </div>
+  );
+};
+
+// ── Other panels (unchanged) ──────────────────────────────────────────────────
 
 const OverviewPanel = ({ stats, onNewPost, recentLogs }: any) => (
   <>
     <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-      <StatCard label="Total Blogs" value={stats.blogs.toString()} trend="+12% this month" icon={<PostIcon className="text-blue-600" />} bg="bg-blue-600/5" />
-      <StatCard label="Active Events" value={stats.events.toString()} trend="+2 new this week" icon={<EventIcon className="text-violet-600" />} bg="bg-violet-600/5" />
-      <StatCard label="Total Traffic" value={stats.views.toLocaleString()} trend="+8.4k today" icon={<AnalyticIcon className="text-emerald-600" />} bg="bg-emerald-600/5" />
+      <StatCard label="Total Blogs"    value={stats.blogs.toString()}          trend="+12% this month" icon={<PostIcon    className="text-blue-600" />}    bg="bg-blue-600/5" />
+      <StatCard label="Active Events"  value={stats.events.toString()}         trend="+2 new this week" icon={<EventIcon   className="text-violet-600" />}  bg="bg-violet-600/5" />
+      <StatCard label="Total Traffic"  value={stats.views.toLocaleString()}    trend="+8.4k today"     icon={<AnalyticIcon className="text-emerald-600" />} bg="bg-emerald-600/5" />
     </div>
 
     <section className="mb-16">
@@ -137,8 +420,8 @@ const OverviewPanel = ({ stats, onNewPost, recentLogs }: any) => (
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <CreateCard title="Blog Article" desc="Deep dive stories, industry news, and long-form updates for your readers." icon="✍️" color="from-blue-600 to-indigo-600" onClick={() => onNewPost("blog")} />
-        <CreateCard title="Event Schedule" desc="Promote upcoming meetups, webinars, and community gatherings." icon="🗓️" color="from-violet-600 to-purple-600" onClick={() => onNewPost("event")} />
+        <CreateCard title="Blog Article"    desc="Deep dive stories, industry news, and long-form updates for your readers." icon="✍️" color="from-blue-600 to-indigo-600"   onClick={() => onNewPost("blog")} />
+        <CreateCard title="Event Schedule"  desc="Promote upcoming meetups, webinars, and community gatherings."            icon="🗓️" color="from-violet-600 to-purple-600" onClick={() => onNewPost("event")} />
       </div>
     </section>
 
@@ -162,9 +445,7 @@ const OverviewPanel = ({ stats, onNewPost, recentLogs }: any) => (
                 <ActivityRow key={i} title={log.title} type={log.type} status={log.status} time={log.time} />
               ))
             ) : (
-              <tr>
-                <td colSpan={4} className="px-8 py-6 text-center text-slate-400 font-bold text-sm">No recent activity</td>
-              </tr>
+              <tr><td colSpan={4} className="px-8 py-6 text-center text-slate-400 font-bold text-sm">No recent activity</td></tr>
             )}
           </tbody>
         </table>
@@ -180,9 +461,7 @@ const BlogsListPanel = ({ blogs, onNew, onView, onEdit, onDelete, onToggleStatus
         <h2 className="text-2xl font-black tracking-tight">All Blog Posts</h2>
         <p className="text-sm text-slate-400 font-medium">Manage your published articles and drafts.</p>
       </div>
-      <button onClick={onNew} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors">
-        + New Post
-      </button>
+      <button onClick={onNew} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors">+ New Post</button>
     </div>
     <div className="overflow-x-auto">
       <table className="w-full text-left">
@@ -199,18 +478,20 @@ const BlogsListPanel = ({ blogs, onNew, onView, onEdit, onDelete, onToggleStatus
           {blogs.map((b: any) => (
             <tr key={b.id} className="hover:bg-slate-50/50">
               <td className="px-6 py-4">
-                <button onClick={() => onView?.(b)} className="font-bold text-slate-900 hover:text-indigo-600 text-left transition-colors">
-                  {b.title}
-                </button>
+                <button onClick={() => onView?.(b)} className="font-bold text-slate-900 hover:text-indigo-600 text-left transition-colors">{b.title}</button>
                 {b.isFeatured && <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-600 text-[10px] rounded-full uppercase tracking-wider">Featured</span>}
               </td>
               <td className="px-6 py-4 text-sm text-slate-600">{b.category}</td>
               <td className="px-6 py-4 text-sm text-slate-600">{b.date}</td>
-              <td className="px-6 py-4"><span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${b.status?.toLowerCase() === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-emerald-50 text-emerald-600'}`}>{b.status?.toLowerCase() === 'draft' ? 'Draft' : 'Live'}</span></td>
+              <td className="px-6 py-4">
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${b.status?.toLowerCase() === "draft" ? "bg-slate-100 text-slate-600" : "bg-emerald-50 text-emerald-600"}`}>
+                  {b.status?.toLowerCase() === "draft" ? "Draft" : "Live"}
+                </span>
+              </td>
               <td className="px-6 py-4 text-right space-x-3">
-                <button onClick={() => onToggleStatus?.(b)} className="text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors">{b.status?.toLowerCase() === 'draft' ? 'Publish' : 'Unpublish'}</button>
-                <button onClick={() => onEdit?.(b)} className="text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors">Edit</button>
-                <button onClick={() => onDelete?.(b.id)} className="text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors">Delete</button>
+                <button onClick={() => onToggleStatus?.(b)} className="text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors">{b.status?.toLowerCase() === "draft" ? "Publish" : "Unpublish"}</button>
+                <button onClick={() => onEdit?.(b)}         className="text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors">Edit</button>
+                <button onClick={() => onDelete?.(b.id)}   className="text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors">Delete</button>
               </td>
             </tr>
           ))}
@@ -228,9 +509,7 @@ const EventsListPanel = ({ events, onNew, onView, onEdit, onDelete, onToggleStat
         <h2 className="text-2xl font-black tracking-tight">All Events</h2>
         <p className="text-sm text-slate-400 font-medium">Manage your upcoming and past events.</p>
       </div>
-      <button onClick={onNew} className="px-6 py-3 bg-violet-600 text-white font-bold rounded-xl hover:bg-violet-700 transition-colors">
-        + New Event
-      </button>
+      <button onClick={onNew} className="px-6 py-3 bg-violet-600 text-white font-bold rounded-xl hover:bg-violet-700 transition-colors">+ New Event</button>
     </div>
     <div className="overflow-x-auto">
       <table className="w-full text-left">
@@ -247,18 +526,20 @@ const EventsListPanel = ({ events, onNew, onView, onEdit, onDelete, onToggleStat
           {events.map((e: any) => (
             <tr key={e.id} className="hover:bg-slate-50/50">
               <td className="px-6 py-4">
-                <button onClick={() => onView?.(e)} className="font-bold text-slate-900 hover:text-indigo-600 text-left transition-colors">
-                  {e.title}
-                </button>
+                <button onClick={() => onView?.(e)} className="font-bold text-slate-900 hover:text-indigo-600 text-left transition-colors">{e.title}</button>
                 {e.isFeatured && <span className="ml-2 px-2 py-0.5 bg-amber-100 text-amber-600 text-[10px] rounded-full uppercase tracking-wider">Featured</span>}
               </td>
               <td className="px-6 py-4 text-sm text-slate-600">{e.date} {e.time}</td>
               <td className="px-6 py-4 text-sm text-slate-600">{e.location}</td>
-              <td className="px-6 py-4"><span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${e.status?.toLowerCase() === 'draft' ? 'bg-slate-100 text-slate-600' : 'bg-violet-50 text-violet-600'}`}>{e.status?.toLowerCase() === 'draft' ? 'Draft' : 'Live'}</span></td>
+              <td className="px-6 py-4">
+                <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${e.status?.toLowerCase() === "draft" ? "bg-slate-100 text-slate-600" : "bg-violet-50 text-violet-600"}`}>
+                  {e.status?.toLowerCase() === "draft" ? "Draft" : "Live"}
+                </span>
+              </td>
               <td className="px-6 py-4 text-right space-x-3">
-                <button onClick={() => onToggleStatus?.(e)} className="text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors">{e.status?.toLowerCase() === 'draft' ? 'Publish' : 'Unpublish'}</button>
-                <button onClick={() => onEdit?.(e)} className="text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors">Edit</button>
-                <button onClick={() => onDelete?.(e.id)} className="text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors">Delete</button>
+                <button onClick={() => onToggleStatus?.(e)} className="text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors">{e.status?.toLowerCase() === "draft" ? "Publish" : "Unpublish"}</button>
+                <button onClick={() => onEdit?.(e)}         className="text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors">Edit</button>
+                <button onClick={() => onDelete?.(e.id)}   className="text-xs font-bold text-slate-500 hover:text-rose-600 transition-colors">Delete</button>
               </td>
             </tr>
           ))}
@@ -294,7 +575,6 @@ const AnalyticsPanel = ({ stats }: any) => (
 const CategoriesPanel = ({ categories = [], onCreate, onDelete }: any) => {
   const [name, setName] = React.useState("");
   const [type, setType] = React.useState<"blog" | "event">("blog");
-
   return (
     <div className="bg-white rounded-[2rem] p-8 border border-slate-200/60 shadow-xl shadow-slate-200/20">
       <div className="flex justify-between items-center mb-8">
@@ -303,36 +583,24 @@ const CategoriesPanel = ({ categories = [], onCreate, onDelete }: any) => {
           <p className="text-sm text-slate-400 font-medium">Add or remove categories for blogs and events.</p>
         </div>
       </div>
-      
       <div className="flex gap-4 mb-8 bg-slate-50 p-6 rounded-2xl border border-slate-100">
-        <input 
-          type="text" 
-          placeholder="New Category Name" 
-          value={name} 
-          onChange={e => setName(e.target.value)} 
-          className="flex-1 bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm outline-none focus:border-indigo-500" 
-        />
-        <select 
-          value={type} 
-          onChange={e => setType(e.target.value as any)} 
-          className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm outline-none focus:border-indigo-500 cursor-pointer"
-        >
+        <input type="text" placeholder="New Category Name" value={name} onChange={e => setName(e.target.value)}
+          className="flex-1 bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm text-black outline-none focus:border-indigo-500" />
+        <select value={type} onChange={e => setType(e.target.value as any)}
+          className="bg-white border border-slate-200 px-4 py-2 rounded-xl text-sm text-black outline-none focus:border-indigo-500 cursor-pointer">
           <option value="blog">Blog Category</option>
-          <option value="event">Event Category (Status)</option>
+          <option value="event">Event Category</option>
         </select>
-        <button 
-          onClick={() => { if(name && onCreate) { onCreate(name, type); setName(""); } }} 
-          className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors"
-        >
+        <button onClick={() => { if (name && onCreate) { onCreate(name, type); setName(""); } }}
+          className="px-6 py-2 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors">
           Add
         </button>
       </div>
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         <div>
           <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Blog Categories</h3>
           <div className="space-y-2">
-            {categories.filter((c: any) => c.type === 'blog').map((c: any) => (
+            {categories.filter((c: any) => c.type === "blog").map((c: any) => (
               <div key={c.id} className="flex justify-between items-center bg-white border border-slate-100 p-4 rounded-xl shadow-sm">
                 <span className="font-bold text-slate-700">{c.name}</span>
                 <button onClick={() => onDelete?.(c.id)} className="text-xs text-rose-500 hover:text-rose-700 font-bold">Remove</button>
@@ -343,7 +611,7 @@ const CategoriesPanel = ({ categories = [], onCreate, onDelete }: any) => {
         <div>
           <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4">Event Categories</h3>
           <div className="space-y-2">
-            {categories.filter((c: any) => c.type === 'event').map((c: any) => (
+            {categories.filter((c: any) => c.type === "event").map((c: any) => (
               <div key={c.id} className="flex justify-between items-center bg-white border border-slate-100 p-4 rounded-xl shadow-sm">
                 <span className="font-bold text-slate-700">{c.name}</span>
                 <button onClick={() => onDelete?.(c.id)} className="text-xs text-rose-500 hover:text-rose-700 font-bold">Remove</button>
@@ -356,40 +624,7 @@ const CategoriesPanel = ({ categories = [], onCreate, onDelete }: any) => {
   );
 };
 
-const ConfigPanel = () => (
-  <div className="bg-white rounded-[2rem] p-10 border border-slate-200/60 shadow-xl shadow-slate-200/20">
-    <h2 className="text-2xl font-black tracking-tight mb-2">System Configuration</h2>
-    <p className="text-sm text-slate-500 font-medium mb-8">Your application is currently connected and actively syncing with the backend.</p>
-    
-    <div className="space-y-4">
-      <div className="flex items-center justify-between p-6 bg-slate-50 rounded-2xl border border-slate-100">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          </div>
-          <div>
-            <div className="font-bold text-slate-900">Database Connection</div>
-            <div className="text-sm text-slate-500">PostgreSQL Provider Active</div>
-          </div>
-        </div>
-        <span className="px-3 py-1 bg-green-500/10 text-green-600 text-[10px] font-black uppercase tracking-widest rounded-full">Connected</span>
-      </div>
-      
-      <div className="flex items-center justify-between p-6 bg-slate-50 rounded-2xl border border-slate-100">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          </div>
-          <div>
-            <div className="font-bold text-slate-900">Storage Pipeline</div>
-            <div className="text-sm text-slate-500">AWS / Local Provider Active</div>
-          </div>
-        </div>
-        <span className="px-3 py-1 bg-green-500/10 text-green-600 text-[10px] font-black uppercase tracking-widest rounded-full">Connected</span>
-      </div>
-    </div>
-  </div>
-);
+// ── Shared sub-components ─────────────────────────────────────────────────────
 
 const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void }> = ({ icon, label, active, onClick }) => (
   <button onClick={onClick} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-bold transition-all ${active ? "bg-indigo-600 text-white shadow-xl shadow-indigo-200" : "text-slate-400 hover:text-slate-900 hover:bg-slate-50"}`}>
@@ -400,39 +635,26 @@ const SidebarItem: React.FC<{ icon: React.ReactNode; label: string; active?: boo
 
 const StatCard: React.FC<{ label: string; value: string; trend: string; icon: React.ReactNode; bg: string }> = ({ label, value, trend, icon, bg }) => (
   <div className="bg-white p-8 rounded-[2rem] border border-slate-200/60 shadow-lg shadow-slate-200/10 group hover:translate-y-[-4px] transition-all duration-300">
-    <div className={`w-14 h-14 ${bg} rounded-2xl flex items-center justify-center mb-6 text-2xl group-hover:scale-110 transition-transform`}>
-      {icon}
-    </div>
+    <div className={`w-14 h-14 ${bg} rounded-2xl flex items-center justify-center mb-6 text-2xl group-hover:scale-110 transition-transform`}>{icon}</div>
     <div className="text-4xl font-black tracking-tight mb-2">{value}</div>
     <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">{label}</div>
     <div className="pt-4 border-t border-slate-50 flex items-center gap-2 text-[11px] font-bold text-emerald-500">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-        <path d="M23 6l-9.5 9.5-5-5L1 18" />
-        <path d="M17 6h6v6" />
-      </svg>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M23 6l-9.5 9.5-5-5L1 18"/><path d="M17 6h6v6"/></svg>
       {trend}
     </div>
   </div>
 );
 
 const CreateCard: React.FC<{ title: string; desc: string; icon: string; color: string; onClick: () => void }> = ({ title, desc, icon, color, onClick }) => (
-  <button 
-    onClick={onClick}
-    className="group relative bg-white p-10 rounded-[2.5rem] border border-slate-200/60 text-left overflow-hidden shadow-xl shadow-slate-200/20 hover:shadow-2xl transition-all"
-  >
+  <button onClick={onClick} className="group relative bg-white p-10 rounded-[2.5rem] border border-slate-200/60 text-left overflow-hidden shadow-xl shadow-slate-200/20 hover:shadow-2xl transition-all">
     <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${color} opacity-[0.03] rounded-bl-[5rem] group-hover:scale-150 transition-transform duration-700`}></div>
     <div className="relative z-10 flex gap-8 items-start">
-      <div className={`w-20 h-20 bg-gradient-to-br ${color} rounded-3xl flex items-center justify-center text-5xl shadow-2xl shadow-slate-200 group-hover:scale-110 transition-transform duration-500`}>
-        {icon}
-      </div>
+      <div className={`w-20 h-20 bg-gradient-to-br ${color} rounded-3xl flex items-center justify-center text-5xl shadow-2xl shadow-slate-200 group-hover:scale-110 transition-transform duration-500`}>{icon}</div>
       <div>
         <h3 className="text-2xl font-black mb-3 group-hover:text-indigo-600 transition-colors">{title}</h3>
         <p className="text-slate-400 font-medium leading-relaxed max-w-xs">{desc}</p>
         <div className="mt-6 flex items-center gap-2 text-sm font-bold text-indigo-600 opacity-0 group-hover:opacity-100 translate-x-[-10px] group-hover:translate-x-0 transition-all">
-          Create Now
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-            <path d="M5 12h14M12 5l7 7-7 7" />
-          </svg>
+          Create Now <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
         </div>
       </div>
     </div>
@@ -441,13 +663,9 @@ const CreateCard: React.FC<{ title: string; desc: string; icon: string; color: s
 
 const ActivityRow: React.FC<{ title: string; type: string; status: string; time: string }> = ({ title, type, status, time }) => (
   <tr className="hover:bg-slate-50/50 transition-colors group">
+    <td className="px-8 py-6"><div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{title}</div></td>
     <td className="px-8 py-6">
-      <div className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{title}</div>
-    </td>
-    <td className="px-8 py-6">
-      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${type === "Blog" ? "bg-blue-50 text-blue-600" : "bg-violet-50 text-violet-600"}`}>
-        {type}
-      </span>
+      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${type === "Blog" ? "bg-blue-50 text-blue-600" : "bg-violet-50 text-violet-600"}`}>{type}</span>
     </td>
     <td className="px-8 py-6">
       <div className="flex items-center gap-2 text-sm font-bold">
@@ -459,11 +677,10 @@ const ActivityRow: React.FC<{ title: string; type: string; status: string; time:
   </tr>
 );
 
-// Icons
-const HomeIcon = ({ className = "w-5 h-5" }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>;
-const PostIcon = ({ className = "w-5 h-5" }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>;
-const EventIcon = ({ className = "w-5 h-5" }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>;
-const AnalyticIcon = ({ className = "w-5 h-5" }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 20V10M12 20V4M6 20v-6" /></svg>;
+// ── Icons ─────────────────────────────────────────────────────────────────────
+const HomeIcon     = ({ className = "w-5 h-5" }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+const PostIcon     = ({ className = "w-5 h-5" }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>;
+const EventIcon    = ({ className = "w-5 h-5" }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>;
+const AnalyticIcon = ({ className = "w-5 h-5" }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>;
 const CategoryIcon = ({ className = "w-5 h-5" }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>;
-const SettingsIcon = ({ className = "w-5 h-5" }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>;
-
+const SettingsIcon = ({ className = "w-5 h-5" }) => <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;

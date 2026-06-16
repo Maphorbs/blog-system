@@ -5,8 +5,7 @@ import { MongoDbProvider } from "./mongodb";
 import { MySqlProvider } from "./mysql";
 import { SqliteProvider } from "./sqlite";
 import { FirebaseProvider } from "./firebase";
-import { readFile } from "fs/promises";
-import path from "path";
+import { resolveDbConfig } from "../env-config";
 
 export * from "./types";
 export { PostgresProvider } from "./postgres";
@@ -18,88 +17,56 @@ export { FirebaseProvider } from "./firebase";
 
 let activeProvider: BackendDbProvider | null = null;
 
-async function getDbConfig() {
-  try {
-    const configPath = path.join(process.cwd(), "data", "blog_system_config.json");
-    const data = await readFile(configPath, "utf-8");
-    const config = JSON.parse(data);
-    return config.db;
-  } catch (e) {
-    return null;
+function createProvider(providerType: string, config?: any): BackendDbProvider {
+  switch (providerType) {
+    case "postgres":
+    case "aws_rds":
+    case "digitalocean_db":
+      return new PostgresProvider();
+    case "supabase":
+      return config ? new SupabaseProvider(config) : new SupabaseProvider();
+    case "mongodb":
+      return config ? new MongoDbProvider(config) : new MongoDbProvider();
+    case "mysql":
+      return config ? new MySqlProvider(config) : new MySqlProvider();
+    case "sqlite":
+      return config ? new SqliteProvider(config) : new SqliteProvider();
+    case "firebase":
+      return config ? new FirebaseProvider(config) : new FirebaseProvider();
+    default:
+      throw new Error(`Unsupported database provider: ${providerType}`);
   }
 }
 
 export async function getActiveProvider(): Promise<BackendDbProvider> {
   if (activeProvider) return activeProvider;
 
-  const dbConfig = await getDbConfig();
-  if (!dbConfig) {
-    throw new Error("Database is not configured. Please complete the admin setup.");
+  // Always resolve via env-config — works both locally (JSON file) and on Vercel (env vars)
+  const dbConfig = await resolveDbConfig();
+
+  if (!dbConfig.provider) {
+    throw new Error("Database is not configured. Please set BLOG_DB_PROVIDER and matching credentials.");
   }
 
-  const providerType = dbConfig.provider;
-
-  switch (providerType) {
-    case "postgres":
-    case "aws_rds":
-    case "digitalocean_db":
-      activeProvider = new PostgresProvider();
-      break;
-    case "supabase":
-      activeProvider = new SupabaseProvider();
-      break;
-    case "mongodb":
-      activeProvider = new MongoDbProvider();
-      break;
-    case "mysql":
-      activeProvider = new MySqlProvider();
-      break;
-    case "sqlite":
-      activeProvider = new SqliteProvider();
-      break;
-    case "firebase":
-      activeProvider = new FirebaseProvider();
-      break;
-    default:
-      throw new Error(`Unsupported database provider: ${providerType}`);
-  }
-
+  activeProvider = createProvider(dbConfig.provider);
   return activeProvider;
 }
 
-// Wrapper functions for backward compatibility and clean API routes
+/** Reset the cached provider (used after re-configuration) */
+export function resetActiveProvider() {
+  activeProvider = null;
+}
+
+// ── Wrapper functions ─────────────────────────────────────────────────────────
+
 export async function initializeDatabase(config: any): Promise<boolean> {
-  const providerType = config?.provider || "postgres";
-  let provider: BackendDbProvider;
+  const providerType = config?.provider;
+  if (!providerType) throw new Error("No provider specified in config.");
 
-  switch (providerType) {
-    case "postgres":
-    case "aws_rds":
-    case "digitalocean_db":
-      provider = new PostgresProvider();
-      break;
-    case "supabase":
-      provider = new SupabaseProvider();
-      break;
-    case "mongodb":
-      provider = new MongoDbProvider();
-      break;
-    case "mysql":
-      provider = new MySqlProvider();
-      break;
-    case "sqlite":
-      provider = new SqliteProvider();
-      break;
-    case "firebase":
-      provider = new FirebaseProvider();
-      break;
-    default:
-      throw new Error(`Unsupported database provider: ${providerType}`);
-  }
-
+  const provider = createProvider(providerType, config);
   const success = await provider.initializeDatabase(config);
   if (success) {
-    activeProvider = provider; // Set as active
+    activeProvider = provider;
   }
   return success;
 }

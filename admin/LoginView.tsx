@@ -16,7 +16,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate authentication check (you can replace this with a real backend check if desired)
     setTimeout(() => {
       if (password === "0909" || password === "admin") {
         localStorage.setItem("is_admin_logged_in", "true");
@@ -43,17 +42,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLogin }) => {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Password / Master Key</label>
-            <input 
-              type="password" 
+            <input
+              type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-slate-900"
+              className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all font-medium text-black placeholder:text-slate-400"
               placeholder="••••••••"
               required
             />
           </div>
 
-          <button 
+          <button
             type="submit"
             disabled={isLoading}
             className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-colors disabled:opacity-70"
