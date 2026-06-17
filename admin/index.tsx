@@ -6,13 +6,21 @@ import { ConnectionView } from "./ConnectionView";
 import { DashboardView } from "./DashboardView";
 import { LoginView } from "./LoginView";
 import { PostEditor } from "./PostEditor";
+import { PostPreview } from "./PostPreview";
 import toast from "react-hot-toast";
 
-import { PostPreview } from "./PostPreview";
-
-type AdminState = "loading" | "welcome" | "setup" | "login" | "dashboard" | "editing_blog" | "editing_event" | "viewing_blog" | "viewing_event";
-
 import { BlogSystemAdapter } from "../types";
+
+type AdminState =
+  | "loading"
+  | "welcome"
+  | "setup"
+  | "login"
+  | "dashboard"
+  | "editing_blog"
+  | "editing_event"
+  | "viewing_blog"
+  | "viewing_event";
 
 export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter }) => {
   const [view, setView] = useState<AdminState>("loading");
@@ -23,14 +31,18 @@ export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter })
   const [categories, setCategories] = useState<any[]>([]);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [viewingItem, setViewingItem] = useState<any>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{type: "blog" | "event" | "category", id: string} | null>(null);
-  
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    type: "blog" | "event" | "category";
+    id: string;
+  } | null>(null);
+
+  // ── Data fetching ──────────────────────────────────────────────────────────
   const fetchStats = async () => {
     try {
       const [blogData, eventData, catData] = await Promise.all([
         adapter.getBlogs(),
         adapter.getEvents(),
-        adapter.getCategories()
+        adapter.getCategories(),
       ]);
       setBlogs(blogData);
       setEvents(eventData);
@@ -56,13 +68,14 @@ export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter })
         } else {
           setView("welcome");
         }
-      } catch (e) {
+      } catch {
         setView("welcome");
       }
     };
     checkConfig();
   }, []);
 
+  // ── Handlers ───────────────────────────────────────────────────────────────
   const handleSetupComplete = (newConfig: any) => {
     setConfig(newConfig);
     localStorage.setItem("is_admin_logged_in", "true");
@@ -75,7 +88,7 @@ export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter })
     setView("login");
   };
 
-  const handleCreateCategory = async (name: string, type: 'blog' | 'event') => {
+  const handleCreateCategory = async (name: string, type: "blog" | "event") => {
     const toastId = toast.loading("Adding category...");
     try {
       await adapter.createCategory(name, type);
@@ -143,15 +156,16 @@ export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter })
     }
   };
 
+  // ── Combined activity log ──────────────────────────────────────────────────
   const combinedLogs = [
-    ...blogs.map(b => ({
+    ...blogs.map((b) => ({
       title: b.title,
       type: "Blog",
       status: b.status || "Published",
       time: b.date || "Recently",
       dateObj: new Date(b.created_at || new Date()),
     })),
-    ...events.map(e => ({
+    ...events.map((e) => ({
       title: e.title,
       type: "Event",
       status: e.status || "Scheduled",
@@ -162,24 +176,36 @@ export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter })
     .sort((a, b) => b.dateObj.getTime() - a.dateObj.getTime())
     .slice(0, 5);
 
+  // ── View renderer ──────────────────────────────────────────────────────────
   const renderContent = () => {
     switch (view) {
+      // ── Loading ────────────────────────────────────────────────────────────
       case "loading":
         return (
           <div className="min-h-screen flex items-center justify-center">
             <div className="animate-pulse flex items-center gap-2">
-              <div className="w-4 h-4 bg-indigo-500 rounded-full"></div>
+              <div className="w-4 h-4 bg-indigo-500 rounded-full" />
               <div className="text-xl font-bold text-slate-400">Loading System...</div>
             </div>
           </div>
         );
 
+      // ── Welcome / onboarding ───────────────────────────────────────────────
       case "welcome":
         return <WelcomeView onGetStarted={() => setView("setup")} />;
 
+      // ── Login ──────────────────────────────────────────────────────────────
       case "login":
-        return <LoginView onLogin={() => { setView("dashboard"); fetchStats(); }} />;
+        return (
+          <LoginView
+            onLogin={() => {
+              setView("dashboard");
+              fetchStats();
+            }}
+          />
+        );
 
+      // ── Setup / connection ─────────────────────────────────────────────────
       case "setup":
         return (
           <ConnectionView
@@ -189,6 +215,7 @@ export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter })
           />
         );
 
+      // ── Dashboard ──────────────────────────────────────────────────────────
       case "dashboard":
         return (
           <DashboardView
@@ -218,8 +245,10 @@ export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter })
           />
         );
 
+      // ── Create / edit blog or event ────────────────────────────────────────
       case "editing_blog":
-      case "editing_event":
+      case "editing_event": {
+        const editType = view === "editing_blog" ? "blog" : "event";
         return (
           <div className="min-h-screen bg-gray-50 p-8">
             <div className="max-w-4xl mx-auto">
@@ -231,18 +260,16 @@ export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter })
               </button>
               <PostEditor
                 adapter={adapter}
-                type={view === "editing_blog" ? "blog" : "event"}
+                type={editType}
                 post={editingItem}
-                categories={categories.filter(
-                  c => c.type === (view === "editing_blog" ? "blog" : "event")
-                )}
+                categories={categories.filter((c) => c.type === editType)}
                 onSave={async (data) => {
                   const toastId = toast.loading(
-                    `Saving ${view === "editing_blog" ? "blog" : "event"}...`
+                    `Saving ${editType === "blog" ? "blog" : "event"}...`
                   );
                   try {
                     const isUpdate = !!editingItem?.id;
-                    if (view === "editing_blog") {
+                    if (editType === "blog") {
                       if (isUpdate) await adapter.updateBlog(editingItem.id, data);
                       else await adapter.createBlog(data);
                     } else {
@@ -250,7 +277,7 @@ export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter })
                       else await adapter.createEvent(data);
                     }
                     toast.success(
-                      `${view === "editing_blog" ? "Blog" : "Event"} published successfully!`,
+                      `${editType === "blog" ? "Blog" : "Event"} published successfully!`,
                       { id: toastId }
                     );
                     fetchStats();
@@ -264,9 +291,13 @@ export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter })
             </div>
           </div>
         );
+      }
 
+      // ── View / preview blog or event ───────────────────────────────────────
+      // PostPreview internally uses BlogRenderer so fonts/styles render correctly.
       case "viewing_blog":
-      case "viewing_event":
+      case "viewing_event": {
+        const viewType = view === "viewing_blog" ? "blog" : "event";
         return (
           <div className="min-h-screen bg-gray-50 p-8">
             <div className="max-w-5xl mx-auto">
@@ -277,45 +308,37 @@ export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter })
                 ← Back to Dashboard
               </button>
               <PostPreview
-                type={view === "viewing_blog" ? "blog" : "event"}
+                type={viewType}
                 post={viewingItem}
-                onEdit={() =>
-                  handleEditPost(
-                    view === "viewing_blog" ? "blog" : "event",
-                    viewingItem
-                  )
-                }
-                onDelete={async () => {
-                  await handleDeletePost(
-                    view === "viewing_blog" ? "blog" : "event",
-                    viewingItem.id
-                  );
-                  setView("dashboard");
+                onEdit={() => handleEditPost(viewType, viewingItem)}
+                onDelete={() => {
+                  handleDeletePost(viewType, viewingItem.id);
+                  // Dashboard will show after confirmDelete resolves
                 }}
                 onToggleStatus={async () => {
-                  await handleToggleStatus(
-                    view === "viewing_blog" ? "blog" : "event",
-                    viewingItem
-                  );
-                  setViewingItem({
-                    ...viewingItem,
-                    status:
-                      viewingItem.status?.toLowerCase() === "draft" ? "Live" : "Draft",
-                  });
+                  await handleToggleStatus(viewType, viewingItem);
+                  // Optimistically flip the status in the local viewing state
+                  setViewingItem((prev: any) => ({
+                    ...prev,
+                    status: prev.status?.toLowerCase() === "draft" ? "Live" : "Draft",
+                  }));
                 }}
               />
             </div>
           </div>
         );
+      }
 
       default:
         return <WelcomeView onGetStarted={() => setView("setup")} />;
     }
   };
 
+  // ── Root render ────────────────────────────────────────────────────────────
   return (
     <>
       {renderContent()}
+
       {deleteConfirm && (
         <DeleteConfirmModal
           itemType={
@@ -333,6 +356,7 @@ export const BlogAdmin: React.FC<{ adapter: BlogSystemAdapter }> = ({ adapter })
   );
 };
 
+// ─── Delete confirmation modal ─────────────────────────────────────────────────
 const DeleteConfirmModal = ({
   itemType,
   onConfirm,
@@ -345,7 +369,14 @@ const DeleteConfirmModal = ({
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
     <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl shadow-slate-900/20 border border-slate-100">
       <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-6 mx-auto">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+        <svg
+          width="28"
+          height="28"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        >
           <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />
         </svg>
       </div>

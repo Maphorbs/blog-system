@@ -58,5 +58,8 @@ export class BlogSystem {
 export { BlogAdmin } from "./admin";
 export { NextJsApiAdapter } from "./adapters/nextjs-api-adapter";
 
+// BlogRenderer Exports (for consumers rendering saved post content)
+export { BlogRenderer, getBlogRendererStyles } from "./admin/BlogRenderer";
+
 // Types Export
 export * from "./types";
